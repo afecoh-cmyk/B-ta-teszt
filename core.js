@@ -59,8 +59,20 @@ const Core = {
             // Modal megjelenítése
             modal.classList.add('active');
 
-            // Touch események blokkolása a modal háttéren (csak a modal overlay-en)
-            modal.addEventListener('touchmove', this._preventBackgroundScroll, { passive: false });
+            // Touch és wheel események blokkolása a modal háttéren
+            // Tároljuk a handler-t a modal elemen, hogy később el tudjuk távolítani
+            modal._scrollHandler = (e) => {
+                // Ha a modal-content-en belül vagyunk, engedjük a görgetést
+                if (e.target.closest('.modal-content')) {
+                    return;
+                }
+                // Egyébként blokkoljuk
+                e.preventDefault();
+                e.stopPropagation();
+            };
+
+            modal.addEventListener('touchmove', modal._scrollHandler, { passive: false });
+            modal.addEventListener('wheel', modal._scrollHandler, { passive: false });
         }
     },
 
@@ -70,8 +82,12 @@ const Core = {
             // Modal elrejtése
             modal.classList.remove('active');
 
-            // Touch esemény blokkolás eltávolítása
-            modal.removeEventListener('touchmove', this._preventBackgroundScroll);
+            // Touch és wheel esemény blokkolás eltávolítása
+            if (modal._scrollHandler) {
+                modal.removeEventListener('touchmove', modal._scrollHandler);
+                modal.removeEventListener('wheel', modal._scrollHandler);
+                delete modal._scrollHandler;
+            }
 
             // Body stílusok visszaállítása
             document.body.classList.remove('modal-open');
@@ -85,16 +101,6 @@ const Core = {
             window.scrollTo(0, parseInt(scrollY));
             delete document.body.dataset.scrollY;
         }
-    },
-
-    // Segédfüggvény: Háttér scroll megakadályozása, de modal tartalom görgetésének engedélyezése
-    _preventBackgroundScroll(e) {
-        // Ha a modal-content-en belül vagyunk, engedjük a görgetést
-        if (e.target.closest('.modal-content')) {
-            return;
-        }
-        // Egyébként blokkoljuk
-        e.preventDefault();
     },
 
     // Téma kezelés
