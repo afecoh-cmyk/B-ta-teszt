@@ -90,36 +90,6 @@
                 </div>
             </div>
 
-            <!-- Contact Tile (Small) -->
-            <div class="tile tile-small" onclick="openModal('contact-modal')">
-                <div class="tile-bg-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <path
-                            d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
-                        </path>
-                    </svg>
-                </div>
-                <div class="tile-content">
-                    <p>Hívás</p>
-                    <span style="font-size: 0.6em; opacity: 0.6; display: block;">🛠️ Fejlesztés alatt</span>
-                </div>
-            </div>
-
-            <!-- Map Tile (Small) -->
-            <div class="tile tile-small" onclick="openModal('map-modal')">
-                <div class="tile-bg-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                    </svg>
-                </div>
-                <div class="tile-content">
-                    <p>Térkép</p>
-                    <span style="font-size: 0.6em; opacity: 0.6; display: block;">🛠️ Fejlesztés alatt</span>
-                </div>
-            </div>
 
             <!-- Themes Tile (Small) -->
             <div class="tile tile-small" onclick="openModal('theme-modal')">
@@ -855,56 +825,6 @@
     </div>
 
     <!-- Map Modal -->
-    <div id="map-modal" class="modal">
-        <div class="modal-content glass-panel" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2>Hol dolgozunk? 📍</h2>
-                <button class="close-btn" onclick="closeModal('map-modal')">×</button>
-            </div>
-            <div class="modal-body">
-                <div
-                    style="background: rgba(255,255,255,0.05); padding: 25px; border-radius: 12px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); text-align: center; position: relative; overflow: hidden;">
-                    <!-- Radar Scanner Visual -->
-                    <div class="radar-container"
-                        style="width: 120px; height: 120px; margin: 0 auto 20px; position: relative;">
-                        <div class="radar-circle"
-                            style="width: 100%; height: 100%; border: 2px solid rgba(76, 201, 240, 0.3); border-radius: 50%; position: absolute; top:0; left:0;">
-                        </div>
-                        <div class="radar-circle"
-                            style="width: 70%; height: 70%; border: 1px solid rgba(76, 201, 240, 0.2); border-radius: 50%; position: absolute; top:15%; left:15%;">
-                        </div>
-                        <div class="radar-circle"
-                            style="width: 40%; height: 40%; border: 1px solid rgba(76, 201, 240, 0.1); border-radius: 50%; position: absolute; top:30%; left:30%;">
-                        </div>
-                        <div class="radar-beam"
-                            style="width: 50%; height: 2px; background: linear-gradient(90deg, transparent, #4cc9f0); position: absolute; top: 50%; left: 50%; transform-origin: left center; animation: rotateRadar 3s linear infinite;">
-                        </div>
-                        <div class="radar-dot"
-                            style="width: 6px; height: 6px; background: #4cc9f0; border-radius: 50%; position: absolute; top: 20%; left: 30%; box-shadow: 0 0 10px #4cc9f0; animation: blink 1.5s infinite;">
-                        </div>
-                        <div class="radar-dot"
-                            style="width: 5px; height: 5px; background: #ff0055; border-radius: 50%; position: absolute; top: 60%; left: 70%; box-shadow: 0 0 8px #ff0055; animation: blink 2s infinite;">
-                        </div>
-                    </div>
-                    <p
-                        style="font-weight: bold; color: #4cc9f0; margin-bottom: 5px; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px;">
-                        Kiszállási Terület</p>
-                    <p style="font-size: 0.85rem; opacity: 0.8;">Helyszíni belső takarítás ott, ahol az autód áll!</p>
-                </div>
-                <h3>Lefedett területek:</h3>
-                <ul style="opacity: 0.8; font-size: 0.9rem; line-height: 1.6; padding-left: 20px;">
-                    <li>Minden budapesti kerület</li>
-                    <li>Budaörs, Törökbálint, Diósd</li>
-                    <li>Dunakeszi, Fót, Gödöllő</li>
-                    <li>Szigetszentmiklós, Érd</li>
-                </ul>
-                <div
-                    style="margin-top:20px; text-align:center; font-size:0.8rem; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px;">
-                    Egyéb helyszín esetén kérlek hívj minket egyedi ajánlatért!
-                </div>
-            </div>
-        </div>
-    </div>
 
     <div id="info-modal" class="modal">
         <div class="modal-content glass-panel" style="max-height: 85vh; overflow-y: auto;">
@@ -958,54 +878,6 @@
         </div>
     </div>
 
-    <!-- Contact Modal -->
-    <div id="contact-modal" class="modal">
-        <div class="modal-content glass-panel" style="max-width: 400px; text-align: center;">
-            <div class="modal-header">
-                <h2>Kapcsolat 📞</h2>
-                <button class="close-btn" onclick="closeModal('contact-modal')">×</button>
-            </div>
-            <div class="modal-body">
-                <div style="margin-bottom: 25px;">
-                    <div
-                        style="width: 70px; height: 70px; background: rgba(76, 201, 240, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; border: 1px solid rgba(76, 201, 240, 0.2);">
-                        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#4cc9f0" stroke-width="1.5">
-                            <path
-                                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
-                            </path>
-                        </svg>
-                    </div>
-                    <h3 style="margin-bottom: 5px;">Hogyan segíthetünk?</h3>
-                    <p style="opacity:0.7; font-size:0.85rem;">Válassz az alábbi lehetőségek közül:</p>
-                </div>
-
-                <div class="contact-button-grid">
-                    <a href="tel:+36301234567" class="contact-option phone">
-                        <div style="font-size: 1.5rem; margin-bottom: 5px;">📞</div>
-                        <div style="font-weight: 600; font-size: 0.8rem;">Hívás</div>
-                    </a>
-                    <a href="https://instagram.com" target="_blank" class="contact-option insta">
-                        <div style="font-size: 1.5rem; margin-bottom: 5px;">📸</div>
-                        <div style="font-weight: 600; font-size: 0.8rem;">Instagram</div>
-                    </a>
-                    <a href="mailto:info@autokozmetika.hu" class="contact-option email">
-                        <div style="font-size: 1.5rem; margin-bottom: 5px;">✉️</div>
-                        <div style="font-weight: 600; font-size: 0.8rem;">E-mail</div>
-                    </a>
-                    <div class="contact-option" onclick="alert('Hamarosan!')"
-                        style="border-color: #00ff41; color: #00ff41;">
-                        <div style="font-size: 1.5rem; margin-bottom: 5px;">💬</div>
-                        <div style="font-weight: 600; font-size: 0.8rem;">WhatsApp</div>
-                    </div>
-                </div>
-
-                <div
-                    style="margin-top: 25px; font-size:0.75rem; opacity:0.5; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
-                    Ügyfélszolgálat: H-P 08:00 - 18:00
-                </div>
-            </div>
-        </div>
-    </div>
 
     <script src="core.js"></script>
     <script src="app.js"></script>
