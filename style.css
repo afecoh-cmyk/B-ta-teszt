@@ -248,23 +248,43 @@ h4 {
 }
 
 
-/* Grid Layout */
+/* Grid Layout - Smart Responsive System */
 .tile-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     /* 2 columns on mobile */
     gap: var(--tile-gap);
-    grid-auto-rows: 100px;
-    /* Base height for small tiles */
+    grid-auto-rows: minmax(110px, auto);
+    /* Flexible row height */
+    grid-auto-flow: dense;
+    /* Smart gap filling to prevent tangling */
+}
+
+/* Responsive Breakpoints */
+@media (min-width: 600px) {
+    .tile-grid {
+        grid-template-columns: repeat(3, 1fr);
+        /* 3 columns on tablets */
+    }
+}
+
+@media (min-width: 900px) {
+    .tile-grid {
+        grid-template-columns: repeat(4, 1fr);
+        /* 4 columns on desktop */
+    }
 }
 
 /* Tile Styles - Liquid Glass Cards */
 .tile {
     background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate, 150%));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate, 150%));
+    backdrop-filter: blur(15px) saturate(var(--glass-saturate, 150%));
+    -webkit-backdrop-filter: blur(15px) saturate(var(--glass-saturate, 150%));
     border: 1px solid var(--glass-border);
-    padding: 20px;
+    padding: 16px;
+    /* Optimized for mobile touch */
+    min-height: 100px;
+    /* Ensure minimum touch target */
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -274,6 +294,18 @@ h4 {
     overflow: hidden;
     border-radius: var(--border-radius);
     box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
+    will-change: transform;
+    /* Performance optimization */
+}
+
+/* Enhanced blur for larger screens */
+@media (min-width: 600px) {
+    .tile {
+        backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate, 150%));
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate, 150%));
+        padding: 20px;
+        /* More spacious on desktop */
+    }
 }
 
 .tile::before {
@@ -400,14 +432,16 @@ h4 {
 
 .tile h3 {
     margin: 5px 0;
-    font-size: 1.1rem;
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    /* Responsive fluid sizing */
     font-weight: 600;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .tile p {
     margin: 0;
-    font-size: 0.85rem;
+    font-size: clamp(0.8rem, 1.5vw, 0.9rem);
+    /* Responsive fluid sizing */
     opacity: 0.9;
     font-weight: 500;
 }
@@ -505,14 +539,24 @@ h4 {
     border: 1px solid var(--glass-border);
     width: 90%;
     max-width: 440px;
-    max-height: 85vh;
+    max-height: 90vh;
+    /* Better mobile fit */
     overflow-y: auto;
-    /* Enable scrolling for long content */
-    padding: 32px;
+    -webkit-overflow-scrolling: touch;
+    /* Smooth iOS scrolling */
+    padding: 24px;
+    /* Optimized for mobile */
     border-radius: 32px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
     transform: scale(0.95) translateY(20px);
     transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Desktop modal padding */
+@media (min-width: 600px) {
+    .modal-content {
+        padding: 32px;
+    }
 }
 
 
@@ -594,6 +638,8 @@ textarea:focus {
 
 button {
     padding: 14px 24px;
+    min-height: 44px;
+    /* WCAG touch target size */
     cursor: pointer;
     border: none;
     font-weight: 600;
@@ -603,6 +649,8 @@ button {
     position: relative;
     overflow: hidden;
     letter-spacing: 0.01em;
+    font-size: clamp(0.9rem, 1.5vw, 1rem);
+    /* Responsive button text */
 }
 
 
