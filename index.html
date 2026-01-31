@@ -120,21 +120,6 @@
                     <span style="font-size: 0.6em; opacity: 0.6; display: block;">🛠️ Fejlesztés alatt</span>
                 </div>
             </div>
-            <!-- Info Tile (Small) -->
-            <div class="tile tile-small" onclick="openModal('info-modal')">
-                <div class="tile-bg-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="16" x2="12" y2="12"></line>
-                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                    </svg>
-                </div>
-                <div class="tile-content">
-                    <p>Infó</p>
-                    <span style="font-size: 0.6em; opacity: 0.6; display: block;">🛠️ Fejlesztés alatt</span>
-                </div>
-            </div>
 
             <!-- Themes Tile (Small) -->
             <div class="tile tile-small" onclick="openModal('theme-modal')">
@@ -149,22 +134,19 @@
                 </div>
             </div>
 
-            <!-- Profile és Előfizetés Hub Tile (Medium) - NEW MERGED -->
-            <div class="tile tile-medium tile-primary" onclick="openProfileHub()" id="profile-hub-tile">
+            <!-- Info Tile (Small) -->
+            <div class="tile tile-small" onclick="openModal('info-modal')">
                 <div class="tile-bg-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
                         stroke-linejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
                     </svg>
                 </div>
                 <div class="tile-content">
-                    <h3>Profil</h3>
-                    <div style="font-size:0.9rem; opacity:0.9; margin-bottom: 5px;">
-                        <span id="tile-points-display" style="font-weight:bold; color:#ffd700;">0 pt</span> •
-                        <span id="sub-status-tile" style="font-size:0.8rem;">Free</span>
-                    </div>
-                    <div style="font-size: 0.75rem; opacity: 0.7;">Kattints a részletekért</div>
+                    <p>Infó</p>
+                    <span style="font-size: 0.6em; opacity: 0.6; display: block;">🛠️ Fejlesztés alatt</span>
                 </div>
             </div>
 
@@ -197,6 +179,25 @@
                 </div>
                 <div class="tile-content">
                     <p style="font-size: 0.8rem; font-weight: 600;">GY.I.K.</p>
+                </div>
+            </div>
+
+            <!-- Profile és Előfizetés Hub Tile (Medium) - NEW MERGED -->
+            <div class="tile tile-medium tile-primary" onclick="openProfileHub()" id="profile-hub-tile">
+                <div class="tile-bg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </div>
+                <div class="tile-content">
+                    <h3>Profil</h3>
+                    <div style="font-size:0.9rem; opacity:0.9; margin-bottom: 5px;">
+                        <span id="tile-points-display" style="font-weight:bold; color:#ffd700;">0 pt</span> •
+                        <span id="sub-status-tile" style="font-size:0.8rem;">Free</span>
+                    </div>
+                    <div style="font-size: 0.75rem; opacity: 0.7;">Kattints a részletekért</div>
                 </div>
             </div>
         </div>
