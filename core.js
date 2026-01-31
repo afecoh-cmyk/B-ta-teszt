@@ -41,21 +41,60 @@ const Core = {
         return now;
     },
 
-    // Modal kezelés
+    // Modal kezelés - Továbbfejlesztett scroll lock
     openModal(id) {
         const modal = document.getElementById(id);
         if (modal) {
-            modal.classList.add('active');
+            // Mentjük a jelenlegi scroll pozíciót
+            const scrollY = window.scrollY;
+            document.body.dataset.scrollY = scrollY;
+
+            // Body-t fixáljuk és beállítjuk a pozíciót
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollY}px`;
+            document.body.style.width = '100%';
             document.body.style.overflow = 'hidden';
+            document.body.classList.add('modal-open');
+
+            // Modal megjelenítése
+            modal.classList.add('active');
+
+            // Touch események blokkolása a modal háttéren (csak a modal overlay-en)
+            modal.addEventListener('touchmove', this._preventBackgroundScroll, { passive: false });
         }
     },
 
     closeModal(id) {
         const modal = document.getElementById(id);
         if (modal) {
+            // Modal elrejtése
             modal.classList.remove('active');
+
+            // Touch esemény blokkolás eltávolítása
+            modal.removeEventListener('touchmove', this._preventBackgroundScroll);
+
+            // Body stílusok visszaállítása
+            document.body.classList.remove('modal-open');
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
             document.body.style.overflow = '';
+
+            // Scroll pozíció visszaállítása
+            const scrollY = document.body.dataset.scrollY || '0';
+            window.scrollTo(0, parseInt(scrollY));
+            delete document.body.dataset.scrollY;
         }
+    },
+
+    // Segédfüggvény: Háttér scroll megakadályozása, de modal tartalom görgetésének engedélyezése
+    _preventBackgroundScroll(e) {
+        // Ha a modal-content-en belül vagyunk, engedjük a görgetést
+        if (e.target.closest('.modal-content')) {
+            return;
+        }
+        // Egyébként blokkoljuk
+        e.preventDefault();
     },
 
     // Téma kezelés
