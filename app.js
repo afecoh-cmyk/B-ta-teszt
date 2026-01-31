@@ -533,11 +533,24 @@ function initBookingSystem() {
     currentStep = 1;
 
     // Load Services
-    appServices = JSON.parse(localStorage.getItem('app_services')) || [];
-    // Default if empty (fallback)
-    if (appServices.length === 0) {
-        appServices = [{ id: 'srv_default', name: 'Belső Takarítás', duration: 30, price: 5000 }];
+    appServices = Core.getData('app_services');
+
+    // ONE-TIME INITIALIZATION: Create default service only if system is brand new
+    const systemInitialized = localStorage.getItem('system_initialized');
+    if (!systemInitialized && appServices.length === 0) {
+        // First time setup - create one default service
+        appServices = [{
+            id: 'srv_default',
+            name: 'Belső Takarítás',
+            duration: 30,
+            price: 5000,
+            type: 'base'
+        }];
+        Core.saveData('app_services', appServices);
+        localStorage.setItem('system_initialized', 'true');
     }
+    // If system is initialized but services deleted: appServices stays []
+    // This allows admin to delete all services permanently!
 
     renderCalendar();
     renderServicesWizard(); // Pre-render Step 2

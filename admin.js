@@ -36,16 +36,19 @@ function loadData() {
     appAnnouncements = Core.getData('app_announcements_v4');
     appVipRequests = Core.getData('vip_requests');
 
-    // Load services or init default if empty
+    // Load services with ONE-TIME initialization
     appServices = Core.getData('app_services');
 
-    if (appServices.length === 0) {
+    const systemInitialized = localStorage.getItem('system_initialized');
+    if (!systemInitialized && appServices.length === 0) {
+        // First time setup - create one default service
         appServices = [
-            { id: 'srv_1', name: 'Belső Takarítás', duration: 30, price: 4500, cost: 500 },
-            { id: 'srv_2', name: 'Prémium Mosás', duration: 60, price: 8500, cost: 1200 }
+            { id: 'srv_1', name: 'Belső Takarítás', duration: 30, price: 4500, cost: 500, type: 'base' }
         ];
         Core.saveData('app_services', appServices);
+        localStorage.setItem('system_initialized', 'true');
     }
+    // After init: empty array is valid! Services can be deleted permanently.
 
     // Data Back-filling: Ensure all bookings have a price and cost based on their service
     let bookingsModified = false;
