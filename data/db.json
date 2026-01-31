@@ -1,0 +1,13 @@
+{
+  "users": [],
+  "bookings": [],
+  "services": [
+    { "id": "srv_1", "name": "Belső Takarítás", "duration": 30, "price": 4500, "cost": 500 },
+    { "id": "srv_2", "name": "Prémium Mosás", "duration": 60, "price": 8500, "cost": 1200 }
+  ],
+  "announcements": [],
+  "system": {
+    "last_sync": null,
+    "version": "1.0.0"
+  }
+}
