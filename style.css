@@ -1538,3 +1538,152 @@ button:disabled {
 .animate-list-item {
     animation: listFadeIn 0.5s ease forwards;
 }
+
+/* ===================== MOBILE RESPONSIVE STYLES ===================== */
+
+/* Tablets and smaller (max-width: 768px) */
+@media (max-width: 768px) {
+
+    /* Countdown Timer - Reduce size for mobile */
+    .countdown-timer {
+        font-size: 1.8rem !important;
+    }
+
+    .countdown-label {
+        font-size: 0.75rem;
+    }
+
+    /* Tiles - Better mobile sizing */
+    .tile {
+        min-height: 120px;
+    }
+
+    .tile h3 {
+        font-size: 1rem;
+    }
+
+    .tile p {
+        font-size: 0.85rem;
+    }
+
+    /* Car Cards */
+    .car-info h4 {
+        font-size: 1.1rem;
+    }
+
+    .car-plate {
+        font-size: 0.9rem;
+    }
+
+    /* Wizard Container */
+    .wizard-container {
+        max-width: 100%;
+        height: auto;
+        max-height: 80vh;
+    }
+}
+
+/* Mobile phones (max-width: 480px) */
+@media (max-width: 480px) {
+
+    /* Countdown Timer - Even smaller for phones */
+    .countdown-timer {
+        font-size: 1.4rem !important;
+        margin-bottom: 3px;
+    }
+
+    .countdown-label {
+        font-size: 0.7rem;
+        letter-spacing: 1px;
+    }
+
+    .countdown-container {
+        padding: 10px;
+    }
+
+    /* Tiles Grid - Stack on mobile */
+    .tiles-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    /* Modal adjustments */
+    .modal-content {
+        padding: 15px;
+        max-width: 95vw;
+    }
+
+    .modal-header h2 {
+        font-size: 1.2rem;
+    }
+
+    /* Car Plate Timer in Garage */
+    .plate-timer {
+        font-size: 0.9em !important;
+        margin-left: 5px !important;
+    }
+
+    /* Car Details Grid */
+    .car-details-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    /* Garage View Toggle */
+    #garage-view-toggle {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+
+    /* Reduce padding on buttons */
+    .btn-primary,
+    .btn-secondary {
+        padding: 10px 16px;
+        font-size: 0.9rem;
+    }
+
+    /* Calendar Day Cards */
+    .calendar-day {
+        flex: 0 0 60px;
+        padding: 8px 3px;
+    }
+
+    .day-number {
+        font-size: 1rem;
+    }
+
+    /* Time Slots */
+    .slots-grid {
+        grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
+    }
+
+    /* Service Cards in wizard */
+    .service-card h4 {
+        font-size: 0.95rem;
+    }
+
+    .service-card .service-duration {
+        font-size: 0.75rem;
+    }
+}
+
+/* Very small phones (max-width: 360px) */
+@media (max-width: 360px) {
+    .countdown-timer {
+        font-size: 1.2rem !important;
+    }
+
+    .countdown-label {
+        font-size: 0.65rem;
+    }
+
+    .car-plate {
+        font-size: 0.8rem;
+        padding: 3px 6px 3px 28px;
+    }
+
+    .car-plate::before {
+        width: 22px;
+        font-size: 0.6rem;
+    }
+}
