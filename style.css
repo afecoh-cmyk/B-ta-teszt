@@ -1192,7 +1192,7 @@ button:disabled {
 
 .countdown-timer {
     font-family: 'Consolas', monospace;
-    font-size: 2.5rem;
+    font-size: 1.8rem;
     font-weight: 700;
     color: #fff;
     /* White text for contrast */
@@ -1204,10 +1204,10 @@ button:disabled {
 }
 
 .countdown-label {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     color: rgba(255, 255, 255, 0.9);
     text-transform: uppercase;
-    letter-spacing: 2px;
+    letter-spacing: 1.5px;
     text-align: center;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
@@ -1544,13 +1544,14 @@ button:disabled {
 /* Tablets and smaller (max-width: 768px) */
 @media (max-width: 768px) {
 
-    /* Countdown Timer - Reduce size for mobile */
+    /* Countdown Timer - Reduce size for tablet */
     .countdown-timer {
-        font-size: 1.8rem !important;
+        font-size: 1.4rem !important;
     }
 
     .countdown-label {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
+        letter-spacing: 1px;
     }
 
     /* Tiles - Better mobile sizing */
@@ -1586,19 +1587,19 @@ button:disabled {
 /* Mobile phones (max-width: 480px) */
 @media (max-width: 480px) {
 
-    /* Countdown Timer - Even smaller for phones */
+    /* Countdown Timer - Compact for phones */
     .countdown-timer {
-        font-size: 1.4rem !important;
-        margin-bottom: 3px;
+        font-size: 1.1rem !important;
+        margin-bottom: 2px;
     }
 
     .countdown-label {
-        font-size: 0.7rem;
-        letter-spacing: 1px;
+        font-size: 0.6rem;
+        letter-spacing: 0.5px;
     }
 
     .countdown-container {
-        padding: 10px;
+        padding: 8px;
     }
 
     /* Tiles Grid - Stack on mobile */
