@@ -425,9 +425,22 @@
 
         function isSlotBooked(startTime, endTime) {
             const buffer = state.settings.bufferTime * 60000;
-            const bookings = state.currentUser?.bookings || [];
 
-            return bookings.some(booking => {
+            // Összegyűjtjük az ÖSSZES foglalást minden felhasználótól
+            let allBookings = [];
+            if (state.users) {
+                state.users.forEach(user => {
+                    if (user.bookings) {
+                        allBookings = allBookings.concat(user.bookings);
+                    }
+                });
+            }
+            // Régi bookings (ha van)
+            if (state.bookings) {
+                allBookings = allBookings.concat(state.bookings);
+            }
+
+            return allBookings.some(booking => {
                 if (booking.status === 'completed' || booking.status === 'cancelled') return false;
 
                 const bookingStart = new Date(`${booking.date}T${booking.time}`);

@@ -339,10 +339,16 @@
                     <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 8px;">⚙️ Admin Panel</h1>
                     <p style="color: var(--color-text-muted);">Teljes kontroll a rendszer felett • Auto-sync: 30s</p>
                 </div>
-                <button id="sync-btn" onclick="manualSync()" class="btn"
-                    style="background: var(--color-accent); color: white; padding: 12px 24px; font-size: 0.95rem;">
-                    🔄 Szinkronizálás
-                </button>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <button onclick="resetSystem()"
+                        style="background: #ff4d4f; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        🗑️ Rendszer Törlése
+                    </button>
+                    <button onclick="manualSync()"
+                        style="background: var(--color-accent); color: black; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        🔄 Szinkronizálás
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -525,6 +531,24 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         }
 
+        // Teljes rendszer törlés (Hard Reset)
+        function resetSystem() {
+            if (confirm('FIGYELEM! Ez a funkció TÖRÖL MINDEN ADATOT (felhasználók, autók, foglalások).\n\nA művelet nem visszavonható!\n\nBiztosan folytatod?')) {
+                if (confirm('Ez tényleg mindent töröl. Biztos vagy benne?')) {
+                    // Adatok törlése
+                    state.users = [];
+                    state.bookings = []; // Legacy field
+                    // Settings-et megtartjuk (nyitvatartás), vagy azt is töröljük? A user kérése "tiszta lap".
+                    // Inkább a settings maradjon, hogy ne kelljen újra konfigurálni a nyitvatartást, csak az ADATOK vesszenek el.
+
+                    saveState();
+                    renderUsers();
+                    renderWorkload();
+                    alert('Rendszer sikeresen törölve! Tiszta lappal indulsz. 🧹');
+                }
+            }
+        }
+
         // TAB SWITCHING
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -639,17 +663,24 @@
             });
 
             const today = new Date().toISOString().split('T')[0];
-            const todayBookings = allBookings.filter(b => b.date === today && b.status !== 'cancelled');
-            const futureBookings = allBookings.filter(b => b.date > today && !['completed', 'cancelled'].includes(b.status));
+            // Mai munkák: aznapi, de NEM completed és NEM cancelled
+            const dailyBookings = allBookings.filter(b => b.date === today && b.status !== 'completed' && b.status !== 'cancelled');
+
+            // Jövőbeli: későbbi dátum, NEM completed/cancelled
+            const futureBookings = allBookings.filter(b => b.date > today && b.status !== 'completed' && b.status !== 'cancelled');
+
+            // Lemondott: bárhol cancelled
             const cancelledBookings = allBookings.filter(b => b.status === 'cancelled');
+
+            // Elvégzett: bárhol completed
             const completedBookings = allBookings.filter(b => b.status === 'completed');
 
-            const pending = todayBookings.filter(b => b.status === 'pending').length;
-            const inProgress = todayBookings.filter(b => b.status === 'in_progress' || b.status === 'on_way' || b.status === 'arrived').length;
+            const pending = dailyBookings.filter(b => b.status === 'pending').length;
+            const inProgress = dailyBookings.filter(b => b.status === 'in_progress' || b.status === 'on_way' || b.status === 'arrived').length;
 
             document.getElementById('stats').innerHTML = `
                 <div class="stat-card">
-                    <div class="stat-number">${todayBookings.length}</div>
+                    <div class="stat-number">${dailyBookings.length}</div>
                     <div class="stat-label">Mai munkák</div>
                 </div>
                 <div class="stat-card">
@@ -658,7 +689,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-number">${cancelledBookings.length}</div>
-                    <div class="stat-label">Lemondva</div>
+                    <div class="stat-label">Lemondott</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number">${completedBookings.length}</div>
@@ -666,22 +697,20 @@
                 </div>
             `;
 
-            const bookingsEl = document.getElementById('bookings');
-            bookingsEl.innerHTML = '';
+            const container = document.getElementById('workload-list');
+            container.innerHTML = '';
 
-            // 1. MAI MUNKÁK
-            const todaySection = document.createElement('div');
-            todaySection.style.marginBottom = '32px';
-            todaySection.innerHTML = '<h2 style="margin-bottom: 16px;">🔥 Mai munkák</h2>';
-
-            if (todayBookings.length === 0) {
-                todaySection.innerHTML += '<p style="color: var(--color-text-muted); padding: 20px; background: var(--bg-tile); border-radius: 8px; text-align: center;">Nincs mai munka</p>';
+            // 1. MAI MUNKÁK (Módosított)
+            const dailySection = document.createElement('div');
+            dailySection.innerHTML = `<h3 style="margin: 24px 0 16px 0; color: var(--color-accent); border-bottom: 1px solid #333; padding-bottom: 8px;">🔥 Mai munkák (${dailyBookings.length})</h3>`;
+            if (dailyBookings.length === 0) {
+                dailySection.innerHTML += '<p style="color: #666; font-style: italic;">Nincs mai teendő (vagy minden kész).</p>';
             } else {
-                todayBookings.sort((a, b) => a.time.localeCompare(b.time)).forEach(booking => {
-                    todaySection.appendChild(createAdminBookingCard(booking));
+                dailyBookings.sort((a, b) => a.time.localeCompare(b.time)).forEach(booking => {
+                    dailySection.appendChild(createAdminBookingCard(booking));
                 });
             }
-            bookingsEl.appendChild(todaySection);
+            container.appendChild(dailySection);
 
             // 2. JÖVŐBELI MUNKÁK
             const futureSection = document.createElement('div');
@@ -754,19 +783,41 @@
             const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
             const totalPrice = services.reduce((sum, s) => sum + s.price, 0);
 
+            // Hátralévő idő számítása
+            let timeInfo = '';
+            const isActive = ['pending', 'on_way'].includes(booking.status);
+            if (isActive && booking.date === new Date().toISOString().split('T')[0]) {
+                const now = new Date();
+                const bookingTime = new Date(`${booking.date}T${booking.time}`);
+                const diffMs = bookingTime - now;
+                const diffMin = Math.round(diffMs / 60000);
+
+                if (diffMin > 0) {
+                    const hours = Math.floor(diffMin / 60);
+                    const mins = diffMin % 60;
+                    timeInfo = `<div style="color: var(--color-accent); font-weight: 600; margin-top: 4px;">⏳ Érkezés: ${hours > 0 ? hours + 'ó ' : ''}${mins}p múlva</div>`;
+                } else if (diffMin > -60) {
+                    timeInfo = `<div style="color: #ff4d4f; font-weight: 600; margin-top: 4px;">⚠️ Késésben: ${Math.abs(diffMin)} perce</div>`;
+                }
+            }
+
             card.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
-                        <div>
-                            <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 4px;">${booking.time}</div>
-                            <div style="color: var(--color-text-muted);">
-                                <strong>${booking.car.plate}</strong> - ${booking.car.type || 'Autó'}
-                            </div>
-                        </div>
-                        <div style="background: ${statusColor[booking.status]}; color: white; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.85rem;">
-                            ${statusText[booking.status]}
-                        </div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <div>
+                        <div style="font-size: 1.1rem; font-weight: 700;">${booking.time} <span style="font-weight: 400; font-size: 0.9rem; color: #888;">(${booking.date})</span></div>
+                        <div style="margin-top: 4px;">${booking.username} - ${booking.car.plate}</div>
+                        <div style="font-size: 0.9rem; color: #888;">${booking.car.type || ''}</div>
+                        ${timeInfo}
                     </div>
-                    <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+                    <div style="text-align: right;">
+                        <div style="font-weight: 700; color: var(--color-accent);">${totalPrice} Ft</div>
+                        <div style="font-size: 0.85rem; color: #888;">${totalDuration} perc</div>
+                    </div>
+                </div>
+                <div style="background: ${statusColor[booking.status]}; color: white; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; margin-bottom: 12px; text-align: center;">
+                    ${statusText[booking.status]}
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 6px; margin-bottom: 12px;">
                         ${services.map(s => `<div style="margin-bottom: 4px;"><strong>${s.name}</strong> - ${s.duration} perc - ${s.price} Ft</div>`).join('')}
                         <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); font-weight: 600;">
                             Összesen: ${totalDuration} perc - ${totalPrice} Ft
