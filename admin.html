@@ -652,6 +652,7 @@
             }
         }
 
+
         // MUNKALISTA
         function renderWorkload() {
             // Összes foglalás összegyűjtése minden userből
@@ -1098,15 +1099,30 @@
         renderWorkload();
 
         // AUTO-SYNC: 30 másodpercenként frissítés (háttérben dolgozik)
+        // AUTO-SYNC és REAL-TIME FRISSÍTÉS
+        // 1. Polling fallback (30s)
         setInterval(() => {
-            loadState(); // Újratöltjük az adatokat localStorage-ból
-            if (document.querySelector('#tab-workload.active')) {
-                renderWorkload();
+            loadState();
+            refreshCurrentView();
+        }, 30000);
+
+        // 2. Azonnali frissítés storage eseményre (másik ablakban történő változás)
+        window.addEventListener('storage', (e) => {
+            if (e.key === STORAGE_KEY) {
+                // console.log('Storage event detected, syncing...');
+                loadState();
+                refreshCurrentView();
             }
-            if (document.querySelector('#tab-users.active')) {
+        });
+
+        function refreshCurrentView() {
+            // Csak az aktív tabot rendereljük újra
+            if (document.getElementById('tab-workload').classList.contains('active')) {
+                renderWorkload();
+            } else if (document.getElementById('tab-users').classList.contains('active')) {
                 renderUsers();
             }
-        }, 30000); // 30 másodperc
+        }
 
         // Manuális szinkronizálás függvény
         function manualSync() {
