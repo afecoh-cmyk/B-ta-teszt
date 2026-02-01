@@ -244,15 +244,15 @@
             }
         };
 
-        function initStore() {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
+        // Betöltés
+        function loadStore() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            if (data) {
                 try {
-                    const parsed = JSON.parse(stored);
+                    let parsed = JSON.parse(data); // Use let for parsed to allow modification
 
-                    // Migráció: Régi state.cars / state.bookings -> users tömbbe
+                    // Migráció: Régi state.cars / state.bookings -> users tömbbe (ha még nem történt meg)
                     if (parsed.cars || parsed.bookings) {
-                        // Ha van régi adat, migráljuk egy default userbe
                         if (!parsed.users) parsed.users = [];
                         if (parsed.users.length === 0 && (parsed.cars?.length > 0 || parsed.bookings?.length > 0)) {
                             parsed.users.push({
@@ -267,13 +267,30 @@
                         delete parsed.bookings;
                     }
 
-                    Object.assign(state, parsed);
+                    // Alap tulajdonságok biztosítása
+                    if (!parsed.users) parsed.users = [];
+                    if (!parsed.services) parsed.services = [];
+                    if (!parsed.settings) parsed.settings = {
+                        openingHours: {
+                            monday: { open: '08:00', close: '17:00', closed: false },
+                            tuesday: { open: '08:00', close: '17:00', closed: false },
+                            wednesday: { open: '08:00', close: '17:00', closed: false },
+                            thursday: { open: '08:00', close: '17:00', closed: false },
+                            friday: { open: '08:00', close: '17:00', closed: false },
+                            saturday: { open: '09:00', close: '13:00', closed: false },
+                            sunday: { open: '09:00', close: '13:00', closed: true } // Vasárnap alapból zárva
+                        },
+                        bufferTime: 15,
+                        minAdvanceBooking: 30
+                    };
+
+                    state = parsed; // Teljes csere a friss adatokra
                 } catch (e) {
-                    console.error('Hiba:', e);
+                    console.error('Hiba a betöltéskor:', e);
                 }
             }
 
-            // Alapértelmezett szolgáltatások
+            // Alapértelmezett szolgáltatások, ha üres
             if (!state.services || state.services.length === 0) {
                 state.services = [
                     { id: '1', name: 'Külső mosás', description: 'Alapos külső tisztítás + szárítás', duration: 30, price: 3500, icon: '💧', active: true },
@@ -282,12 +299,20 @@
                 ];
             }
 
-            // Users inicializálás
-            if (!state.users) state.users = [];
-
-            // Session helyreállítás
+            // Session frissítése (currentUser újratöltése a friss state.users-ből)
             checkSession();
         }
+
+        // REAL-TIME SYNC: Ha az Admin módosít, itt is frissüljön azonnal
+        window.addEventListener('storage', (e) => {
+            if (e.key === STORAGE_KEY) {
+                // console.log('Adatfrissítés az Adminból...');
+                loadStore();
+                if (typeof render === 'function') { // Ensure render exists before calling
+                    render();
+                }
+            }
+        });
 
         function saveStore() {
             // Mentjük a users tömböt, currentUser-t NEM (az session)
@@ -298,6 +323,8 @@
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
         }
+
+
 
         function checkSession() {
             const userId = localStorage.getItem(SESSION_KEY);
@@ -1376,8 +1403,17 @@
             return tile;
         }
 
-        initStore();
-        render();
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStore();
+            // Kezdő nézet: ha be van lépve -> Főoldal, ha nincs -> Auth
+            const userId = localStorage.getItem(SESSION_KEY);
+            if (userId) {
+                render();
+            } else {
+                renderAuth();
+            }
+        });
     </script>
 </body>
 
