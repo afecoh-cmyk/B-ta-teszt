@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#202020">
+    <title>Admin Panel - Garázs App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-app: #202020;
+            --bg-tile: rgba(255, 255, 255, 0.08);
+            --bg-tile-hover: rgba(255, 255, 255, 0.12);
+            --color-text-main: #ffffff;
+            --color-text-muted: #a0a0a0;
+            --color-accent: #60cdff;
+            --color-danger: #ff4d4f;
+            --color-success: #4caf50;
+            --radius-tile: 8px;
+            --font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-app);
+            color: var(--color-text-main);
+            min-height: 100vh;
+            padding: 16px;
+        }
+
+        #app {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--bg-tile);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 2px solid var(--bg-tile);
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            color: var(--color-text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: var(--font-family);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--color-text-main);
+        }
+
+        .tab.active {
+            color: var(--color-accent);
+            border-bottom-color: var(--color-accent);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .admin-card {
+            background: var(--bg-tile);
+            padding: 16px;
+            border-radius: var(--radius-tile);
+            margin-bottom: 16px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-family: var(--font-family);
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--color-accent);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--color-danger);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--color-success);
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-tile);
+            border: 1px solid var(--bg-tile-hover);
+            border-radius: 6px;
+            color: var(--color-text-main);
+            font-family: var(--font-family);
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--color-accent);
+        }
+
+        .service-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .service-item {
+            background: var(--bg-tile);
+            padding: 16px;
+            border-radius: var(--radius-tile);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .service-item.inactive {
+            opacity: 0.5;
+        }
+
+        .service-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background: #555;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: var(--color-success);
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: left 0.3s;
+        }
+
+        .toggle-switch.active::after {
+            left: 29px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-app);
+            padding: 24px;
+            border-radius: var(--radius-tile);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .emoji-btn {
+            font-size: 1.5rem;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 6px;
+            text-align: center;
+            transition: background 0.2s;
+        }
+
+        .emoji-btn:hover {
+            background: var(--bg-tile-hover);
+        }
+
+        .settings-grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        .day-setting {
+            background: var(--bg-tile);
+            padding: 16px;
+            border-radius: var(--radius-tile);
+        }
+
+        .day-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .time-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .stat-card {
+            background: var(--bg-tile);
+            padding: 16px;
+            border-radius: var(--radius-tile);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--color-accent);
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--color-text-muted);
+            margin-top: 4px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .status-pending {
+            border-left: 4px solid #a0a0a0;
+        }
+
+        .status-on_way {
+            border-left: 4px solid #60cdff;
+        }
+
+        .status-arrived {
+            border-left: 4px solid #ffa500;
+        }
+
+        .status-in_progress {
+            border-left: 4px solid #ffeb3b;
+        }
+
+        .status-completed {
+            border-left: 4px solid #4caf50;
+        }
+
+        .action-btn {
+            background: var(--color-accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 8px;
+            margin-top: 8px;
+            font-family: var(--font-family);
+        }
+
+        .action-btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div class="header">
+            <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 8px;">⚙️ Admin Panel</h1>
+            <p style="color: var(--color-text-muted);">Teljes kontroll a rendszer felett</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('workload')">Munkalista</button>
+            <button class="tab" onclick="switchTab('services')">Szolgáltatások</button>
+            <button class="tab" onclick="switchTab('settings')">Beállítások</button>
+        </div>
+
+        <!-- MUNKALISTA TAB -->
+        <div id="tab-workload" class="tab-content active">
+            <div id="stats" class="stats"></div>
+            <h2 style="margin-bottom: 16px;">Mai munkák</h2>
+            <div id="bookings"></div>
+        </div>
+
+        <!-- SZOLGÁLTATÁSOK TAB -->
+        <div id="tab-services" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2>Szolgáltatások kezelése</h2>
+                <button class="btn btn-primary" onclick="openServiceModal()">+ Új szolgáltatás</button>
+            </div>
+            <div id="service-list" class="service-list"></div>
+        </div>
+
+        <!-- BEÁLLÍTÁSOK TAB -->
+        <div id="tab-settings" class="tab-content">
+            <h2 style="margin-bottom: 24px;">Rendszer beállítások</h2>
+
+            <div class="admin-card" style="margin-bottom: 24px;">
+                <h3 style="margin-bottom: 16px;">Általános</h3>
+                <div class="form-group">
+                    <label>Puffer idő (perc)</label>
+                    <input type="number" id="buffer-time" min="0" max="60" value="15">
+                    <small style="color: var(--color-text-muted);">Foglalások közötti minimum idő</small>
+                </div>
+                <div class="form-group">
+                    <label>Minimum előfutási idő (perc)</label>
+                    <input type="number" id="min-advance" min="10" max="180" value="30">
+                    <small style="color: var(--color-text-muted);">Mennyi idővel előre lehet foglalni</small>
+                </div>
+                <button class="btn btn-success" onclick="saveGeneralSettings()">Mentés</button>
+            </div>
+
+            <div class="admin-card">
+                <h3 style="margin-bottom: 16px;">Nyitvatartás</h3>
+                <div id="opening-hours" class="settings-grid"></div>
+                <button class="btn btn-success" onclick="saveOpeningHours()" style="margin-top: 16px;">Mentés</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SZOLGÁLTATÁS MODAL -->
+    <div id="service-modal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 24px;" id="modal-title">Új szolgáltatás</h2>
+            <form id="service-form" onsubmit="saveService(event)">
+                <input type="hidden" id="service-id">
+                <div class="form-group">
+                    <label>Név *</label>
+                    <input type="text" id="service-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Leírás</label>
+                    <textarea id="service-desc" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Időtartam (perc) *</label>
+                    <input type="number" id="service-duration" min="5" max="300" required>
+                </div>
+                <div class="form-group">
+                    <label>Ár (Ft) *</label>
+                    <input type="number" id="service-price" min="0" step="100" required>
+                </div>
+                <div class="form-group">
+                    <label>Ikon (emoji)</label>
+                    <input type="text" id="service-icon" readonly style="cursor: pointer;"
+                        onclick="toggleEmojiPicker()">
+                    <div id="emoji-picker"
+                        style="display: none; margin-top: 8px; padding: 12px; background: var(--bg-tile); border-radius: 6px;">
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;">
+                            <span class="emoji-btn" onclick="selectEmoji('💧')">💧</span>
+                            <span class="emoji-btn" onclick="selectEmoji('✨')">✨</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🚗')">🚗</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🚘')">🚘</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🧹')">🧹</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🧽')">🧽</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🧼')">🧼</span>
+                            <span class="emoji-btn" onclick="selectEmoji('💨')">💨</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🌟')">🌟</span>
+                            <span class="emoji-btn" onclick="selectEmoji('⚡')">⚡</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🔧')">🔧</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🛞')">🛞</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🪣')">🪣</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🫧')">🫧</span>
+                            <span class="emoji-btn" onclick="selectEmoji('🌊')">🌊</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-success">Mentés</button>
+                    <button type="button" class="btn" style="background: #555;"
+                        onclick="closeServiceModal()">Mégse</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'garazs_app_data';
+        let state = {
+            cars: [],
+            bookings: [],
+            services: [],
+            settings: {
+                openingHours: {
+                    monday: { open: '06:00', close: '15:00', closed: false },
+                    tuesday: { open: '06:00', close: '15:00', closed: false },
+                    wednesday: { open: '06:00', close: '15:00', closed: false },
+                    thursday: { open: '06:00', close: '15:00', closed: false },
+                    friday: { open: '06:00', close: '15:00', closed: false },
+                    saturday: { open: '08:00', close: '14:00', closed: false },
+                    sunday: { open: '08:00', close: '14:00', closed: false }
+                },
+                bufferTime: 15,
+                minAdvanceBooking: 30
+            }
+        };
+
+        function loadState() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    state = { ...state, ...parsed };
+
+                    // Alapértelmezett szolgáltatások, ha nincs
+                    if (!state.services || state.services.length === 0) {
+                        state.services = [
+                            { id: '1', name: 'Külső mosás', description: 'Alapos külső tisztítás + szárítás', duration: 30, price: 3500, icon: '💧', active: true },
+                            { id: '2', name: 'Prémium külső', description: 'Mosás + viaszolás + gumik', duration: 60, price: 7500, icon: '✨', active: true },
+                            { id: '3', name: 'Belső tisztítás', description: 'Porszívózás + felületek', duration: 45, price: 5000, icon: '🧹', active: true },
+                            { id: '4', name: 'Mélytisztítás', description: 'Teljes belső + szőnyegek', duration: 90, price: 12000, icon: '🔬', active: true },
+                            { id: '5', name: 'Teljes csomag', description: 'Külső + Belső + Viasz', duration: 120, price: 18000, icon: '🌟', active: true }
+                        ];
+                        // Azonnal mentjük, hogy a garazs-app is lássa
+                        setTimeout(() => saveState(), 0);
+                    }
+
+                    // Beállítások inicializálása
+                    if (!state.settings) {
+                        state.settings = {
+                            openingHours: {
+                                monday: { open: '06:00', close: '15:00', closed: false },
+                                tuesday: { open: '06:00', close: '15:00', closed: false },
+                                wednesday: { open: '06:00', close: '15:00', closed: false },
+                                thursday: { open: '06:00', close: '15:00', closed: false },
+                                friday: { open: '06:00', close: '15:00', closed: false },
+                                saturday: { open: '08:00', close: '14:00', closed: false },
+                                sunday: { open: '08:00', close: '14:00', closed: false }
+                            },
+                            bufferTime: 15,
+                            minAdvanceBooking: 30
+                        };
+                    }
+                } catch (e) {
+                    console.error('Hiba:', e);
+                }
+            }
+        }
+
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        // TAB SWITCHING
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+
+            if (tabName === 'workload') renderWorkload();
+            if (tabName === 'services') renderServices();
+            if (tabName === 'settings') renderSettings();
+        }
+
+        // MUNKALISTA
+        function renderWorkload() {
+            const today = new Date().toISOString().split('T')[0];
+            const todayBookings = (state.bookings || []).filter(b => b.date === today);
+            const pending = todayBookings.filter(b => b.status === 'pending').length;
+            const inProgress = todayBookings.filter(b => b.status === 'in_progress' || b.status === 'on_way' || b.status === 'arrived').length;
+            const completed = todayBookings.filter(b => b.status === 'completed').length;
+
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${todayBookings.length}</div>
+                    <div class="stat-label">Összes mai</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${pending}</div>
+                    <div class="stat-label">Várakozik</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${inProgress}</div>
+                    <div class="stat-label">Folyamatban</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${completed}</div>
+                    <div class="stat-label">Kész</div>
+                </div>
+            `;
+
+            const activeBookings = todayBookings.filter(b => b.status !== 'completed').sort((a, b) => a.time.localeCompare(b.time));
+            const bookingsEl = document.getElementById('bookings');
+
+            if (activeBookings.length === 0) {
+                bookingsEl.innerHTML = `
+                    <div style="text-align: center; padding: 60px; color: var(--color-text-muted);">
+                        <h2 style="font-size: 3rem; margin-bottom: 16px;">🎉</h2>
+                        <h3>Nincs aktív munka</h3>
+                        <p style="margin-top: 8px;">Minden kész mára!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            bookingsEl.innerHTML = '';
+            activeBookings.forEach(booking => {
+                const card = document.createElement('div');
+                card.className = `admin-card status-${booking.status}`;
+
+                const statusText = {
+                    'pending': 'Várakozik',
+                    'on_way': 'Úton vagyok',
+                    'arrived': 'Megérkeztem',
+                    'in_progress': 'Folyamatban'
+                };
+
+                const statusColor = {
+                    'pending': '#a0a0a0',
+                    'on_way': '#60cdff',
+                    'arrived': '#ffa500',
+                    'in_progress': '#ffeb3b'
+                };
+
+                // Szolgáltatások megjelenítése
+                const services = Array.isArray(booking.services) ? booking.services : [booking.service];
+                const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
+                const totalPrice = services.reduce((sum, s) => sum + s.price, 0);
+
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                        <div>
+                            <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 4px;">${booking.time}</div>
+                            <div style="color: var(--color-text-muted);">
+                                <strong>${booking.car.plate}</strong> - ${booking.car.type || 'Autó'}
+                            </div>
+                        </div>
+                        <div style="background: ${statusColor[booking.status]}; color: white; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.85rem;">
+                            ${statusText[booking.status]}
+                        </div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+                        ${services.map(s => `<div style="margin-bottom: 4px;"><strong>${s.name}</strong> - ${s.duration} perc - ${s.price} Ft</div>`).join('')}
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); font-weight: 600;">
+                            Összesen: ${totalDuration} perc - ${totalPrice} Ft
+                        </div>
+                    </div>
+                `;
+
+                const actions = document.createElement('div');
+                actions.style.display = 'flex';
+                actions.style.gap = '8px';
+
+                if (booking.status === 'pending') {
+                    const btn = document.createElement('button');
+                    btn.className = 'action-btn';
+                    btn.textContent = '🚗 Elindultam';
+                    btn.onclick = () => updateBookingStatus(booking.id, 'on_way');
+                    actions.appendChild(btn);
+                }
+
+                if (booking.status === 'on_way') {
+                    const btn = document.createElement('button');
+                    btn.className = 'action-btn';
+                    btn.textContent = '📍 Itt vagyok';
+                    btn.onclick = () => updateBookingStatus(booking.id, 'arrived');
+                    actions.appendChild(btn);
+                }
+
+                if (booking.status === 'arrived') {
+                    const btn = document.createElement('button');
+                    btn.className = 'action-btn';
+                    btn.textContent = '🔧 Kezdem';
+                    btn.onclick = () => updateBookingStatus(booking.id, 'in_progress');
+                    actions.appendChild(btn);
+                }
+
+                if (booking.status === 'in_progress') {
+                    const btn = document.createElement('button');
+                    btn.className = 'action-btn';
+                    btn.style.background = '#4caf50';
+                    btn.textContent = '✅ Befejeztem';
+                    btn.onclick = () => {
+                        if (confirm('Biztosan befejezted?')) {
+                            updateBookingStatus(booking.id, 'completed');
+                        }
+                    };
+                    actions.appendChild(btn);
+                }
+
+                card.appendChild(actions);
+                bookingsEl.appendChild(card);
+            });
+        }
+
+        function updateBookingStatus(bookingId, status) {
+            const booking = state.bookings?.find(b => b.id === bookingId);
+            if (booking) {
+                booking.status = status;
+                booking.lastUpdated = new Date();
+                saveState();
+                renderWorkload();
+            }
+        }
+
+        // SZOLGÁLTATÁSOK
+        function renderServices() {
+            const list = document.getElementById('service-list');
+            list.innerHTML = '';
+
+            state.services.forEach(service => {
+                const item = document.createElement('div');
+                item.className = `service-item ${service.active ? '' : 'inactive'}`;
+                item.innerHTML = `
+                    <div>
+                        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 4px;">${service.icon || ''} ${service.name}</div>
+                        <div style="color: var(--color-text-muted); font-size: 0.9rem;">${service.description || '-'}</div>
+                        <div style="margin-top: 8px; font-weight: 600;">${service.duration} perc • ${service.price} Ft</div>
+                    </div>
+                    <div class="service-actions">
+                        <div class="toggle-switch ${service.active ? 'active' : ''}" onclick="toggleService('${service.id}')"></div>
+                        <button class="btn btn-primary" onclick="editService('${service.id}')">Szerkeszt</button>
+                        <button class="btn btn-danger" onclick="deleteService('${service.id}')">Törlés</button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function openServiceModal(serviceId = null) {
+            const modal = document.getElementById('service-modal');
+            const form = document.getElementById('service-form');
+            form.reset();
+
+            if (serviceId) {
+                const service = state.services.find(s => s.id === serviceId);
+                if (service) {
+                    document.getElementById('modal-title').textContent = 'Szolgáltatás szerkesztése';
+                    document.getElementById('service-id').value = service.id;
+                    document.getElementById('service-name').value = service.name;
+                    document.getElementById('service-desc').value = service.description || '';
+                    document.getElementById('service-duration').value = service.duration;
+                    document.getElementById('service-price').value = service.price;
+                    document.getElementById('service-icon').value = service.icon || '';
+                }
+            } else {
+                document.getElementById('modal-title').textContent = 'Új szolgáltatás';
+                document.getElementById('service-id').value = '';
+            }
+
+            modal.classList.add('active');
+        }
+
+        function closeServiceModal() {
+            document.getElementById('service-modal').classList.remove('active');
+            document.getElementById('emoji-picker').style.display = 'none';
+        }
+
+        function toggleEmojiPicker() {
+            const picker = document.getElementById('emoji-picker');
+            picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function selectEmoji(emoji) {
+            document.getElementById('service-icon').value = emoji;
+            document.getElementById('emoji-picker').style.display = 'none';
+        }
+
+        function saveService(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('service-id').value || Date.now().toString();
+            const name = document.getElementById('service-name').value;
+            const description = document.getElementById('service-desc').value;
+            const duration = parseInt(document.getElementById('service-duration').value);
+            const price = parseInt(document.getElementById('service-price').value);
+            const icon = document.getElementById('service-icon').value;
+
+            const existingIndex = state.services.findIndex(s => s.id === id);
+            const service = { id, name, description, duration, price, icon, active: true };
+
+            if (existingIndex >= 0) {
+                state.services[existingIndex] = { ...state.services[existingIndex], ...service };
+            } else {
+                state.services.push(service);
+            }
+
+            saveState();
+            closeServiceModal();
+            renderServices();
+        }
+
+        function editService(id) {
+            openServiceModal(id);
+        }
+
+        function toggleService(id) {
+            const service = state.services.find(s => s.id === id);
+            if (service) {
+                service.active = !service.active;
+                saveState();
+                renderServices();
+            }
+        }
+
+        function deleteService(id) {
+            if (confirm('Biztosan törlöd ezt a szolgáltatást?')) {
+                state.services = state.services.filter(s => s.id !== id);
+                saveState();
+                renderServices();
+            }
+        }
+
+        // BEÁLLÍTÁSOK
+        function renderSettings() {
+            // Általános beállítások
+            document.getElementById('buffer-time').value = state.settings.bufferTime;
+            document.getElementById('min-advance').value = state.settings.minAdvanceBooking;
+
+            // Nyitvatartás
+            const days = {
+                monday: 'Hétfő',
+                tuesday: 'Kedd',
+                wednesday: 'Szerda',
+                thursday: 'Csütörtök',
+                friday: 'Péntek',
+                saturday: 'Szombat',
+                sunday: 'Vasárnap'
+            };
+
+            const container = document.getElementById('opening-hours');
+            container.innerHTML = '';
+
+            Object.keys(days).forEach(day => {
+                const hours = state.settings.openingHours[day];
+                const div = document.createElement('div');
+                div.className = 'day-setting';
+                div.innerHTML = `
+                    <div class="day-header">
+                        <strong>${days[day]}</strong>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" ${hours.closed ? 'checked' : ''} onchange="toggleDay('${day}')">
+                            <span>Zárva</span>
+                        </label>
+                    </div>
+                    <div class="time-inputs" id="times-${day}" style="display: ${hours.closed ? 'none' : 'grid'};">
+                        <div>
+                            <label style="font-size: 0.9rem; margin-bottom: 4px; display: block;">Nyitás</label>
+                            <input type="time" value="${hours.open}" id="open-${day}">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.9rem; margin-bottom: 4px; display: block;">Zárás</label>
+                            <input type="time" value="${hours.close}" id="close-${day}">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function toggleDay(day) {
+            const checkbox = event.target;
+            const timesDiv = document.getElementById(`times-${day}`);
+            timesDiv.style.display = checkbox.checked ? 'none' : 'grid';
+        }
+
+        function saveGeneralSettings() {
+            state.settings.bufferTime = parseInt(document.getElementById('buffer-time').value);
+            state.settings.minAdvanceBooking = parseInt(document.getElementById('min-advance').value);
+            saveState();
+            alert('✅ Beállítások mentve!');
+        }
+
+        function saveOpeningHours() {
+            const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+            days.forEach(day => {
+                const timesDiv = document.getElementById(`times-${day}`);
+                const closed = timesDiv.style.display === 'none';
+
+                state.settings.openingHours[day] = {
+                    open: document.getElementById(`open-${day}`).value,
+                    close: document.getElementById(`close-${day}`).value,
+                    closed: closed
+                };
+            });
+
+            saveState();
+            alert('✅ Nyitvatartás mentve!');
+        }
+
+        // INIT
+        loadState();
+        renderWorkload();
+        setInterval(() => {
+            if (document.querySelector('#tab-workload.active')) {
+                renderWorkload();
+            }
+        }, 5000);
+    </script>
+</body>
+
+</html>

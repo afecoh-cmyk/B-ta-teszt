@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#202020">
+    <title>Garázs App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-app: #202020;
+            --bg-tile: rgba(255, 255, 255, 0.08);
+            --bg-tile-hover: rgba(255, 255, 255, 0.12);
+            --color-text-main: #ffffff;
+            --color-text-muted: #a0a0a0;
+            --color-accent: #60cdff;
+            --color-danger: #ff4d4f;
+            --gap-grid: 12px;
+            --radius-tile: 8px;
+            --font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-app);
+            color: var(--color-text-main);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            padding: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .tile-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--gap-grid);
+        }
+
+        .tile-full {
+            grid-column: span 2;
+        }
+
+        .tile {
+            background-color: var(--bg-tile);
+            border-radius: var(--radius-tile);
+            padding: 16px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.1s, background-color 0.2s;
+            min-height: 140px;
+        }
+
+        .tile:hover {
+            background-color: var(--bg-tile-hover);
+        }
+
+        .tile-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .tile-subtitle {
+            font-size: 0.85rem;
+            color: var(--color-text-muted);
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: var(--color-accent);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: var(--radius-tile);
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: var(--font-family);
+        }
+
+        .date-scroll {
+            overflow-x: auto;
+            margin-bottom: 24px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .date-grid {
+            display: flex;
+            gap: 8px;
+            padding-bottom: 8px;
+        }
+
+        .date-tile {
+            min-width: 90px;
+            padding: 16px 12px;
+            background: var(--bg-tile);
+            border-radius: var(--radius-tile);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .date-tile.selected {
+            border-color: var(--color-accent);
+            background: rgba(96, 205, 255, 0.15);
+        }
+
+        .time-slot {
+            background: var(--bg-tile);
+            padding: 12px;
+            border-radius: var(--radius-tile);
+            text-align: center;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .time-slot.available {
+            border-color: #4caf50;
+        }
+
+        .time-slot.booked {
+            background: rgba(255, 77, 79, 0.2);
+            border-color: var(--color-danger);
+            cursor: not-allowed;
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        .time-slot.selected {
+            border-color: var(--color-accent);
+            background: rgba(96, 205, 255, 0.15);
+        }
+
+        .service-checkbox {
+            background: var(--bg-tile);
+            padding: 16px;
+            border-radius: var(--radius-tile);
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .service-checkbox.selected {
+            border-color: var(--color-accent);
+            background: rgba(96, 205, 255, 0.15);
+        }
+
+        .service-checkbox input[type="checkbox"] {
+            margin-right: 12px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .summary-box {
+            background: linear-gradient(135deg, var(--color-accent), #4facfe);
+            padding: 16px;
+            border-radius: var(--radius-tile);
+            color: white;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .countdown-box {
+            background: linear-gradient(135deg, var(--color-accent), #4facfe);
+            padding: 16px;
+            border-radius: var(--radius-tile);
+            margin-bottom: 24px;
+            text-align: center;
+            color: white;
+        }
+
+        .step-indicator {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .step-dot {
+            flex: 1;
+            height: 4px;
+            background: var(--bg-tile);
+            border-radius: 2px;
+        }
+
+        .step-dot.active {
+            background: var(--color-accent);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app"></div>
+
+    <script>
+        const STORAGE_KEY = 'garazs_app_data';
+        const state = {
+            cars: [],
+            bookings: [],
+            services: [],
+            settings: {
+                openingHours: {
+                    monday: { open: '06:00', close: '15:00', closed: false },
+                    tuesday: { open: '06:00', close: '15:00', closed: false },
+                    wednesday: { open: '06:00', close: '15:00', closed: false },
+                    thursday: { open: '06:00', close: '15:00', closed: false },
+                    friday: { open: '06:00', close: '15:00', closed: false },
+                    saturday: { open: '08:00', close: '14:00', closed: false },
+                    sunday: { open: '08:00', close: '14:00', closed: false }
+                },
+                bufferTime: 15,
+                minAdvanceBooking: 30
+            }
+        };
+
+        function initStore() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    Object.assign(state, parsed);
+                } catch (e) {
+                    console.error('Hiba:', e);
+                }
+            }
+
+            // Alapértelmezett szolgáltatások
+            if (!state.services || state.services.length === 0) {
+                state.services = [
+                    { id: '1', name: 'Külső mosás', description: 'Alapos külső tisztítás + szárítás', duration: 30, price: 3500, icon: '💧', active: true },
+                    { id: '2', name: 'Prémium külső', description: 'Mosás + viaszolás + gumik', duration: 60, price: 7500, icon: '✨', active: true },
+                    { id: '3', name: 'Belső tisztítás', description: 'Porszívózás + felületek', duration: 45, price: 5000, icon: '🧹', active: true }
+                ];
+            }
+        }
+
+        function saveStore() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function addCar(car) {
+            state.cars.push(car);
+            saveStore();
+        }
+
+        // ===== INTELLIGENS IDŐPONT GENERÁLÁS =====
+        function getDayName(dateString) {
+            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const date = new Date(dateString);
+            return days[date.getDay()];
+        }
+
+        function parseTime(dateString, timeString) {
+            return new Date(`${dateString}T${timeString}:00`);
+        }
+
+        function formatTime(date) {
+            return date.toTimeString().slice(0, 5);
+        }
+
+        function getAvailableTimeSlots(date, totalDuration) {
+            const dayOfWeek = getDayName(date);
+            const hours = state.settings.openingHours[dayOfWeek];
+
+            if (hours.closed) return [];
+
+            const slots = [];
+            const now = new Date();
+            const minBookingTime = new Date(now.getTime() + state.settings.minAdvanceBooking * 60000);
+
+            let current = parseTime(date, hours.open);
+            const closeTime = parseTime(date, hours.close);
+
+            while (current < closeTime) {
+                const endTime = new Date(current.getTime() + totalDuration * 60000);
+
+                const isAvailable =
+                    current > minBookingTime &&
+                    endTime <= closeTime &&
+                    !isSlotBooked(current, endTime);
+
+                slots.push({
+                    time: formatTime(current),
+                    available: isAvailable,
+                    booked: !isAvailable && current > now
+                });
+
+                current = new Date(current.getTime() + 30 * 60000); // 30 perc lépés
+            }
+
+            return slots;
+        }
+
+        function isSlotBooked(startTime, endTime) {
+            const buffer = state.settings.bufferTime * 60000;
+
+            return state.bookings.some(booking => {
+                if (booking.status === 'completed') return false;
+
+                const bookingStart = new Date(`${booking.date}T${booking.time}`);
+                const services = Array.isArray(booking.services) ? booking.services : [booking.service];
+                const bookingDuration = services.reduce((sum, s) => sum + s.duration, 0);
+                const bookingEnd = new Date(bookingStart.getTime() + bookingDuration * 60000 + buffer);
+
+                return (startTime < bookingEnd && endTime > bookingStart);
+            });
+        }
+
+        function calculateCountdown(targetDate, targetTime) {
+            const target = new Date(`${targetDate}T${targetTime}:00`);
+            const now = new Date();
+            const diff = target - now;
+
+            if (diff <= 0) return { expired: true, text: 'Lejárt' };
+
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            return {
+                expired: false,
+                text: `${days}n ${hours}ó ${minutes}p ${seconds}mp`
+            };
+        }
+
+        function getNextBooking() {
+            if (!state.bookings || state.bookings.length === 0) return null;
+            const now = new Date();
+            const upcoming = state.bookings
+                .filter(b => b.status !== 'completed')
+                .map(b => ({ ...b, datetime: new Date(`${b.date}T${b.time}:00`) }))
+                .filter(b => b.datetime > now)
+                .sort((a, b) => a.datetime - b.datetime);
+            return upcoming[0] || null;
+        }
+
+        function generateCalendarDates() {
+            const dates = [];
+            const today = new Date();
+            const dayNames = ['Vas', 'Hét', 'Kedd', 'Sze', 'Csüt', 'Pén', 'Szo'];
+
+            for (let i = 0; i < 35; i++) {
+                const date = new Date(today);
+                date.setDate(today.getDate() + i);
+
+                let label = `${dayNames[date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}`;
+                if (i === 0) label = `Ma (${label})`;
+                if (i === 1) label = `Holnap (${label})`;
+
+                dates.push({
+                    value: date.toISOString().split('T')[0],
+                    label: label,
+                    date: date
+                });
+            }
+            return dates;
+        }
+
+        // ===== ROUTER =====
+        let currentView = '/';
+
+        function navigate(path) {
+            currentView = path;
+            if (path === '/') {
+                // Reseteljük a foglalási folyamatot, ha visszatérünk a főoldalra
+                // Így mindig friss dátummal indul a következő foglalás
+                bookingState = { selectedCar: state.cars[0], selectedServices: [], selectedDate: null, selectedTime: null, step: 1 };
+            }
+            render();
+        }
+
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = '';
+
+            if (currentView === '/') {
+                app.appendChild(renderGarage());
+            } else if (currentView === '/booking') {
+                app.appendChild(renderBooking());
+            }
+        }
+
+        // ===== GARAGE VIEW =====
+        function renderGarage() {
+            const container = document.createElement('div');
+
+            container.innerHTML = `
+                <div style="margin-bottom: 24px;">
+                    <h1 style="font-size: 2rem; font-weight: 700;">Garázs</h1>
+                    <p style="color: var(--color-text-muted);">Üdv újra!</p>
+                </div>
+            `;
+
+            const nextBooking = getNextBooking();
+            if (nextBooking) {
+                const countdownEl = document.createElement('div');
+                countdownEl.className = 'countdown-box';
+                const services = Array.isArray(nextBooking.services) ? nextBooking.services : [nextBooking.service];
+                const serviceNames = services.map(s => s.name).join(', ');
+
+                countdownEl.innerHTML = `
+                    <div style="font-size: 0.9rem; opacity: 0.9;">Következő foglalás</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; margin: 8px 0;" id="countdown-display">Számolás...</div>
+                    <div style="font-size: 0.85rem; opacity: 0.8;">${nextBooking.date} ${nextBooking.time} - ${serviceNames}</div>
+                    <div id="status-display" style="margin-top: 8px; font-weight: 600;"></div>
+                `;
+                container.appendChild(countdownEl);
+
+                setInterval(() => {
+                    const countdown = calculateCountdown(nextBooking.date, nextBooking.time);
+                    const display = document.getElementById('countdown-display');
+                    const statusDisplay = document.getElementById('status-display');
+
+                    if (display) {
+                        display.textContent = countdown.expired ? 'Lejárt' : countdown.text;
+                    }
+
+                    if (statusDisplay && nextBooking.status) {
+                        const statusText = {
+                            'pending': '',
+                            'on_way': '🚗 Úton vagyok',
+                            'arrived': '📍 Megérkeztem',
+                            'in_progress': '🔧 Folyamatban',
+                            'completed': '✅ Kész'
+                        };
+                        statusDisplay.textContent = statusText[nextBooking.status] || '';
+                    }
+                }, 1000);
+            }
+
+            const grid = document.createElement('div');
+            grid.className = 'tile-grid';
+
+            if (state.cars.length === 0) {
+                const addCarTile = createTile({
+                    title: 'Parkold le az autódat',
+                    subtitle: 'Koppints ide az első autód felvételéhez',
+                    icon: '🚗',
+                    full: true,
+                    onClick: () => {
+                        const plate = prompt('Írd be a rendszámot (pl. ABC-123):');
+                        if (plate) {
+                            addCar({ plate, type: 'Ismeretlen', addedAt: new Date() });
+                            navigate('/');
+                        }
+                    }
+                });
+                addCarTile.style.border = '1px solid var(--color-accent)';
+                grid.appendChild(addCarTile);
+            } else {
+                state.cars.forEach(car => {
+                    grid.appendChild(createTile({
+                        title: car.plate,
+                        subtitle: car.type || 'Személyautó',
+                        icon: '🚘',
+                        full: true,
+                        onClick: () => navigate('/booking')
+                    }));
+                });
+
+                grid.appendChild(createTile({
+                    title: 'Új autó',
+                    icon: '➕',
+                    onClick: () => {
+                        const plate = prompt('Új rendszám:');
+                        if (plate) {
+                            addCar({ plate, type: 'Egyéb' });
+                            navigate('/');
+                        }
+                    }
+                }));
+            }
+
+            grid.appendChild(createTile({ title: 'Előzmények', subtitle: 'Korábbi tisztítások', icon: '📅', onClick: () => alert('Hamarosan') }));
+            grid.appendChild(createTile({ title: 'Profil', icon: '👤', onClick: () => alert('Hamarosan') }));
+
+            container.appendChild(grid);
+            return container;
+        }
+
+        // ===== BOOKING VIEW =====
+        let bookingState = { selectedCar: null, selectedServices: [], selectedDate: null, selectedTime: null, step: 1 };
+
+        function renderBooking() {
+            const container = document.createElement('div');
+
+            if (!state.cars || state.cars.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px;">
+                        <h2>Nincs autód a garázsban</h2>
+                        <button class="btn-primary" onclick="navigate('/')">Vissza a garázsba</button>
+                    </div>
+                `;
+                return container;
+            }
+
+            if (!bookingState.selectedCar) bookingState.selectedCar = state.cars[0];
+
+            container.innerHTML = `
+                <button id="back-btn" style="background: none; border: none; color: var(--color-accent); cursor: pointer; font-size: 1.5rem; padding: 0; margin-bottom: 8px;">← Vissza</button>
+                <h1 style="font-size: 2rem; font-weight: 700;">Foglalás</h1>
+                <p style="color: var(--color-text-muted); margin-bottom: 24px;">${bookingState.selectedCar.plate}</p>
+            `;
+
+            const stepIndicator = document.createElement('div');
+            stepIndicator.className = 'step-indicator';
+            for (let i = 1; i <= 3; i++) {
+                const dot = document.createElement('div');
+                dot.className = `step-dot ${i <= bookingState.step ? 'active' : ''}`;
+                stepIndicator.appendChild(dot);
+            }
+            container.appendChild(stepIndicator);
+
+            if (bookingState.step === 1) {
+                container.appendChild(renderServiceSelection());
+            } else if (bookingState.step === 2) {
+                container.appendChild(renderTimeSelection());
+            } else if (bookingState.step === 3) {
+                container.appendChild(renderSummary());
+            }
+
+            // Vissza gomb logika
+            const backBtn = container.querySelector('#back-btn');
+            if (backBtn) {
+                backBtn.onclick = () => {
+                    if (bookingState.step > 1) {
+                        bookingState.step--;
+                        navigate('/booking');
+                    } else {
+                        navigate('/');
+                    }
+                };
+            }
+
+            return container;
+        }
+
+        function renderServiceSelection() {
+            const section = document.createElement('div');
+            section.innerHTML = '<h2 style="margin-bottom: 16px;">Válassz szolgáltatás(oka)t</h2>';
+
+            const activeServices = state.services.filter(s => s.active);
+
+            activeServices.forEach(service => {
+                const checkbox = document.createElement('div');
+                checkbox.className = `service-checkbox ${bookingState.selectedServices.some(s => s.id === service.id) ? 'selected' : ''}`;
+                checkbox.innerHTML = `
+                    <label style="display: flex; align-items: start; cursor: pointer;">
+                        <input type="checkbox" ${bookingState.selectedServices.some(s => s.id === service.id) ? 'checked' : ''} onchange="toggleService('${service.id}')">
+                        <div>
+                            <div style="font-weight: 600; font-size: 1.1rem;">${service.icon || ''} ${service.name}</div>
+                            <div style="color: var(--color-text-muted); font-size: 0.9rem; margin-top: 4px;">${service.description || ''}</div>
+                            <div style="margin-top: 8px; font-weight: 600;">${service.duration} perc • ${service.price} Ft</div>
+                        </div>
+                    </label>
+                `;
+                section.appendChild(checkbox);
+            });
+
+            // Összesítő
+            if (bookingState.selectedServices.length > 0) {
+                const totalDuration = bookingState.selectedServices.reduce((sum, s) => sum + s.duration, 0);
+                const totalPrice = bookingState.selectedServices.reduce((sum, s) => sum + s.price, 0);
+
+                const summary = document.createElement('div');
+                summary.className = 'summary-box';
+                summary.innerHTML = `
+                    <div style="font-size: 1.2rem; font-weight: 700;">Összesen</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; margin-top: 8px;">${totalDuration} perc • ${totalPrice} Ft</div>
+                `;
+                section.appendChild(summary);
+
+                const btn = document.createElement('button');
+                btn.className = 'btn-primary';
+                btn.textContent = 'Tovább az időpont választáshoz';
+                btn.onclick = () => {
+                    bookingState.step = 2;
+                    navigate('/booking');
+                };
+                section.appendChild(btn);
+            }
+
+            return section;
+        }
+
+        window.toggleService = function (serviceId) {
+            const service = state.services.find(s => s.id === serviceId);
+            const index = bookingState.selectedServices.findIndex(s => s.id === serviceId);
+
+            if (index >= 0) {
+                bookingState.selectedServices.splice(index, 1);
+            } else {
+                bookingState.selectedServices.push(service);
+            }
+
+            navigate('/booking');
+        };
+
+        function renderTimeSelection() {
+            const section = document.createElement('div');
+            section.innerHTML = '<h2 style="margin-bottom: 16px;">Válassz időpontot</h2>';
+
+            const totalDuration = bookingState.selectedServices.reduce((sum, s) => sum + s.duration, 0);
+
+            const dateContainer = document.createElement('div');
+            dateContainer.className = 'date-scroll';
+            const dateGrid = document.createElement('div');
+            dateGrid.className = 'date-grid';
+
+            generateCalendarDates().forEach((date, index) => {
+                const tile = document.createElement('div');
+                tile.className = 'date-tile';
+
+                // Ellenőrizzük, hogy ez a nap zárva van-e
+                const dayOfWeek = getDayName(date.value);
+                const hours = state.settings.openingHours[dayOfWeek];
+                const isClosed = hours.closed;
+
+                tile.innerHTML = `
+                    <div style="font-weight: 600; font-size: 0.85rem; white-space: nowrap;">${date.label}</div>
+                    <div style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 4px;">&nbsp;</div>
+                    ${isClosed ? '<div style="font-size: 0.7rem; color: var(--color-danger); margin-top: 4px;">Zárva</div>' : ''}
+                `;
+
+                // Ha ez a kiválasztott dátum VAGY első betöltéskor az első nyitva lévő nap
+                if (bookingState.selectedDate === date.value) {
+                    tile.classList.add('selected');
+                } else if (!bookingState.selectedDate && index === 0) {
+                    // Első nyitva lévő napot keressük
+                    const firstOpenDate = generateCalendarDates().find(d => {
+                        const day = getDayName(d.value);
+                        return !state.settings.openingHours[day].closed;
+                    });
+                    if (firstOpenDate) {
+                        bookingState.selectedDate = firstOpenDate.value;
+                        if (date.value === firstOpenDate.value) {
+                            tile.classList.add('selected');
+                        }
+                    }
+                }
+
+                if (!isClosed) {
+                    tile.onclick = () => {
+                        bookingState.selectedDate = date.value;
+                        bookingState.selectedTime = null; // Reset time when date changes
+                        render();
+                    };
+                    tile.style.cursor = 'pointer';
+                } else {
+                    tile.style.opacity = '0.5';
+                    tile.style.cursor = 'not-allowed';
+                }
+
+                dateGrid.appendChild(tile);
+            });
+
+            dateContainer.appendChild(dateGrid);
+            section.appendChild(dateContainer);
+
+            // Időpont fejléc és grid - createElement használata innerHTML += helyett
+            const timeHeader = document.createElement('h3');
+            timeHeader.style.margin = '16px 0';
+            timeHeader.textContent = 'Időpont';
+            section.appendChild(timeHeader);
+
+            const timeGrid = document.createElement('div');
+            timeGrid.className = 'tile-grid';
+
+            const slots = getAvailableTimeSlots(bookingState.selectedDate, totalDuration);
+
+            if (slots.length === 0) {
+                const noSlots = document.createElement('p');
+                noSlots.style.cssText = 'text-align: center; color: var(--color-text-muted); padding: 20px; grid-column: span 2;';
+                noSlots.textContent = 'Nincs elérhető időpont ezen a napon. Válassz másik napot!';
+                timeGrid.appendChild(noSlots);
+            } else {
+                slots.forEach(slot => {
+                    const tile = document.createElement('div');
+                    tile.className = `time-slot ${slot.available ? 'available' : slot.booked ? 'booked' : ''}`;
+                    tile.textContent = slot.time;
+
+                    if (slot.available) {
+                        tile.onclick = () => {
+                            bookingState.selectedTime = slot.time;
+                            bookingState.step = 3;
+                            navigate('/booking');
+                        };
+                    }
+
+                    timeGrid.appendChild(tile);
+                });
+            }
+
+            section.appendChild(timeGrid);
+            return section;
+        }
+
+        function renderSummary() {
+            const section = document.createElement('div');
+            const totalDuration = bookingState.selectedServices.reduce((sum, s) => sum + s.duration, 0);
+            const totalPrice = bookingState.selectedServices.reduce((sum, s) => sum + s.price, 0);
+
+            section.innerHTML = `
+                <h2 style="margin-bottom: 24px;">Foglalás összesítő</h2>
+                <div style="background: var(--bg-tile); padding: 20px; border-radius: var(--radius-tile); margin-bottom: 24px;">
+                    <div style="margin-bottom: 12px;"><strong>Autó:</strong> ${bookingState.selectedCar.plate}</div>
+                    <div style="margin-bottom: 12px;"><strong>Szolgáltatások:</strong></div>
+                    ${bookingState.selectedServices.map(s => `<div style="margin-left: 16px; margin-bottom: 4px;">• ${s.name} (${s.duration} perc, ${s.price} Ft)</div>`).join('')}
+                    <div style="margin-top: 12px; margin-bottom: 12px;"><strong>Időpont:</strong> ${bookingState.selectedDate} ${bookingState.selectedTime}</div>
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--bg-tile-hover);">
+                        <strong style="font-size: 1.2rem; color: var(--color-accent);">Összesen: ${totalDuration} perc • ${totalPrice} Ft</strong>
+                    </div>
+                </div>
+            `;
+
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = 'Foglalás véglegesítése';
+            confirmBtn.className = 'btn-primary';
+            confirmBtn.onclick = () => {
+                if (!state.bookings) state.bookings = [];
+                state.bookings.push({
+                    id: Date.now(),
+                    car: bookingState.selectedCar,
+                    services: bookingState.selectedServices,
+                    date: bookingState.selectedDate,
+                    time: bookingState.selectedTime,
+                    status: 'pending',
+                    createdAt: new Date()
+                });
+                saveStore();
+                bookingState = { step: 1, selectedCar: state.cars[0], selectedServices: [], selectedDate: null, selectedTime: null };
+                alert('✅ Foglalás sikeres!');
+                navigate('/');
+            };
+
+            section.appendChild(confirmBtn);
+            return section;
+        }
+
+        function createTile({ title, subtitle, icon, full, onClick }) {
+            const tile = document.createElement('div');
+            tile.className = `tile ${full ? 'tile-full' : ''}`;
+
+            tile.innerHTML = `
+                ${icon ? `<div style="font-size: 2rem; margin-bottom: 8px;">${icon}</div>` : ''}
+                <div class="tile-content">
+                    <h3 class="tile-title">${title}</h3>
+                    ${subtitle ? `<p class="tile-subtitle">${subtitle}</p>` : ''}
+                </div>
+            `;
+
+            tile.onclick = () => {
+                tile.style.transform = 'scale(0.98)';
+                setTimeout(() => tile.style.transform = 'scale(1)', 100);
+                if (onClick) onClick();
+            };
+
+            return tile;
+        }
+
+        initStore();
+        render();
+    </script>
+</body>
+
+</html>
