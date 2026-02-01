@@ -517,6 +517,8 @@
                 app.appendChild(renderBooking());
             } else if (currentView === '/bookings') {
                 app.appendChild(renderBookings());
+            } else if (currentView === '/profile') {
+                app.appendChild(renderProfile());
             }
         }
 
@@ -752,7 +754,7 @@
             }
 
             grid.appendChild(createTile({ title: 'Foglalásaim', subtitle: 'Aktív és korábbi', icon: '📅', onClick: () => navigate('/bookings') }));
-            grid.appendChild(createTile({ title: 'Profil', icon: '👤', onClick: () => alert('Hamarosan') }));
+            grid.appendChild(createTile({ title: 'Profil', subtitle: 'Autók és adatok', icon: '👤', onClick: () => navigate('/profile') }));
 
             container.appendChild(grid);
             return container;
@@ -878,6 +880,104 @@
                 if (cancelBooking(bookingId)) {
                     navigate('/bookings'); // Reload
                 }
+            }
+        }
+
+
+        // ===== PROFILE VIEW =====
+        function renderProfile() {
+            const container = document.createElement('div');
+            container.style.cssText = 'animation: fadeIn 0.3s;';
+            const user = state.currentUser;
+            const cars = getUserCars();
+
+            container.innerHTML = `
+                <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+                    <h1 style="font-size: 2rem; font-weight: 700;">Profilom</h1>
+                    <button onclick="navigate('/')" style="padding: 8px 16px; background: var(--bg-tile); border: none; border-radius: 6px; color: var(--color-text-muted); cursor: pointer;">
+                        ← Vissza
+                    </button>
+                </div>
+                
+                <div class="admin-card" style="margin-bottom: 32px;">
+                    <h2 style="font-size: 1.3rem; margin-bottom: 16px;">👤 Felhasználói adatok</h2>
+                    <div style="margin-bottom: 8px;"><strong style="color: var(--color-text-muted);">Felhasználónév:</strong> ${user.username}</div>
+                    <div style="margin-bottom: 8px;"><strong style="color: var(--color-text-muted);">Regisztráció:</strong> ${new Date(user.id).toLocaleDateString('hu-HU')}</div>
+                </div>
+                
+                <h2 style="font-size: 1.3rem; margin-bottom: 16px;">🚗 Autóim kezelése</h2>
+            `;
+
+            if (cars.length === 0) {
+                const noCars = document.createElement('div');
+                noCars.style.cssText = 'text-align: center; padding: 32px; background: var(--bg-tile); border-radius: 8px; color: var(--color-text-muted);';
+                noCars.innerHTML = `
+                    <p style="margin-bottom: 16px;">Még nincs hozzáadott autód.</p>
+                    <button class="btn-primary" onclick="navigate('/')">Autó hozzáadása a főoldalon</button>
+                `;
+                container.appendChild(noCars);
+            } else {
+                cars.forEach((car, index) => {
+                    const carCard = document.createElement('div');
+                    carCard.className = 'admin-card';
+                    carCard.style.cssText = 'margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;';
+
+                    carCard.innerHTML = `
+                        <div>
+                            <div style="font-size: 1.2rem; font-weight: 700;">${car.plate}</div>
+                            <div style="color: var(--color-text-muted); margin-top: 4px;">${car.type || 'Személyautó'}</div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button onclick="editCar(${index})" style="padding: 8px; background: var(--bg-tile-hover); border: none; border-radius: 6px; cursor: pointer; font-size: 1.2rem;" title="Szerkesztés">
+                                ✏️
+                            </button>
+                            ${cars.length > 1 ? `
+                            <button onclick="deleteCar(${index})" style="padding: 8px; background: var(--bg-tile-hover); border: none; border-radius: 6px; cursor: pointer; font-size: 1.2rem;" title="Törlés">
+                                🗑️
+                            </button>
+                            ` : ''}
+                        </div>
+                    `;
+                    container.appendChild(carCard);
+                });
+
+                if (cars.length === 1) {
+                    const hint = document.createElement('p');
+                    hint.style.cssText = 'color: var(--color-text-muted); font-size: 0.85rem; margin-top: 8px; text-align: center;';
+                    hint.textContent = 'ℹ️ Az utolsó autó nem törölhető (legalább egynek lennie kell).';
+                    container.appendChild(hint);
+                }
+            }
+
+            return container;
+        }
+
+        function editCar(index) {
+            const car = state.currentUser.cars[index];
+            const newPlate = prompt('Rendszám módosítása:', car.plate);
+            if (newPlate === null) return; // Mégsem
+
+            const newType = prompt('Típus/Becenév módosítása:', car.type || '');
+            if (newType === null) return;
+
+            if (newPlate.trim()) {
+                state.currentUser.cars[index].plate = newPlate.trim().toUpperCase();
+                state.currentUser.cars[index].type = newType.trim() || 'Személyautó';
+                saveStore();
+                render(); // Re-render profile
+            }
+        }
+
+        function deleteCar(index) {
+            if (state.currentUser.cars.length <= 1) {
+                alert('Legalább egy autónak maradnia kell!');
+                return;
+            }
+
+            if (confirm('Biztosan törölni szeretnéd ezt az autót?')) {
+                state.currentUser.cars.splice(index, 1);
+                saveStore();
+                render();
             }
         }
 
