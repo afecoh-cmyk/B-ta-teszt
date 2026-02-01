@@ -218,9 +218,11 @@
 
     <script>
         const STORAGE_KEY = 'garazs_app_data';
+        const SESSION_KEY = 'garazs_current_user_id';
+
         const state = {
-            cars: [],
-            bookings: [],
+            currentUser: null,  // { id, username, cars: [], bookings: [] }
+            users: [],          // Összes user
             services: [],
             settings: {
                 openingHours: {
@@ -242,6 +244,24 @@
             if (stored) {
                 try {
                     const parsed = JSON.parse(stored);
+
+                    // Migráció: Régi state.cars / state.bookings -> users tömbbe
+                    if (parsed.cars || parsed.bookings) {
+                        // Ha van régi adat, migráljuk egy default userbe
+                        if (!parsed.users) parsed.users = [];
+                        if (parsed.users.length === 0 && (parsed.cars?.length > 0 || parsed.bookings?.length > 0)) {
+                            parsed.users.push({
+                                id: Date.now(),
+                                username: 'felhasznalo',
+                                password: '1234', // Alapértelmezett jelszó
+                                cars: parsed.cars || [],
+                                bookings: parsed.bookings || []
+                            });
+                        }
+                        delete parsed.cars;
+                        delete parsed.bookings;
+                    }
+
                     Object.assign(state, parsed);
                 } catch (e) {
                     console.error('Hiba:', e);
@@ -256,15 +276,98 @@
                     { id: '3', name: 'Belső tisztítás', description: 'Porszívózás + felületek', duration: 45, price: 5000, icon: '🧹', active: true }
                 ];
             }
+
+            // Users inicializálás
+            if (!state.users) state.users = [];
+
+            // Session helyreállítás
+            checkSession();
         }
 
         function saveStore() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            // Mentjük a users tömböt, currentUser-t NEM (az session)
+            const toSave = {
+                users: state.users,
+                services: state.services,
+                settings: state.settings
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+        }
+
+        function checkSession() {
+            const userId = localStorage.getItem(SESSION_KEY);
+            if (userId) {
+                const user = state.users.find(u => u.id === parseInt(userId));
+                if (user) {
+                    state.currentUser = user;
+                    return true;
+                }
+            }
+            state.currentUser = null;
+            return false;
+        }
+
+        function login(username, password) {
+            const user = state.users.find(u => u.username === username && u.password === password);
+            if (user) {
+                state.currentUser = user;
+                localStorage.setItem(SESSION_KEY, user.id);
+                return true;
+            }
+            return false;
+        }
+
+        function register(username, password) {
+            if (state.users.find(u => u.username === username)) {
+                return false; // Már létezik
+            }
+            const newUser = {
+                id: Date.now(),
+                username,
+                password,
+                cars: [],
+                bookings: []
+            };
+            state.users.push(newUser);
+            saveStore();
+            state.currentUser = newUser;
+            localStorage.setItem(SESSION_KEY, newUser.id);
+            return true;
+        }
+
+        function logout() {
+            state.currentUser = null;
+            localStorage.removeItem(SESSION_KEY);
         }
 
         function addCar(car) {
-            state.cars.push(car);
+            if (!state.currentUser) return;
+            if (!state.currentUser.cars) state.currentUser.cars = [];
+            state.currentUser.cars.push(car);
             saveStore();
+        }
+
+        function getUserCars() {
+            return state.currentUser?.cars || [];
+        }
+
+        function addBooking(booking) {
+            if (!state.currentUser) return;
+            if (!state.currentUser.bookings) state.currentUser.bookings = [];
+            state.currentUser.bookings.push(booking);
+            saveStore();
+        }
+
+        function cancelBooking(bookingId) {
+            if (!state.currentUser) return;
+            const booking = state.currentUser.bookings?.find(b => b.id === bookingId);
+            if (booking) {
+                booking.status = 'cancelled';
+                booking.cancelledAt = new Date().toISOString();
+                saveStore();
+                return true;
+            }
+            return false;
         }
 
         // ===== INTELLIGENS IDŐPONT GENERÁLÁS =====
@@ -317,9 +420,10 @@
 
         function isSlotBooked(startTime, endTime) {
             const buffer = state.settings.bufferTime * 60000;
+            const bookings = state.currentUser?.bookings || [];
 
-            return state.bookings.some(booking => {
-                if (booking.status === 'completed') return false;
+            return bookings.some(booking => {
+                if (booking.status === 'completed' || booking.status === 'cancelled') return false;
 
                 const bookingStart = new Date(`${booking.date}T${booking.time}`);
                 const services = Array.isArray(booking.services) ? booking.services : [booking.service];
@@ -349,10 +453,11 @@
         }
 
         function getNextBooking() {
-            if (!state.bookings || state.bookings.length === 0) return null;
+            const bookings = state.currentUser?.bookings || [];
+            if (bookings.length === 0) return null;
             const now = new Date();
-            const upcoming = state.bookings
-                .filter(b => b.status !== 'completed')
+            const upcoming = bookings
+                .filter(b => b.status !== 'completed' && b.status !== 'cancelled')
                 .map(b => ({ ...b, datetime: new Date(`${b.date}T${b.time}:00`) }))
                 .filter(b => b.datetime > now)
                 .sort((a, b) => a.datetime - b.datetime);
@@ -386,10 +491,11 @@
 
         function navigate(path) {
             currentView = path;
-            if (path === '/') {
+            if (path === '/' && state.currentUser) {
                 // Reseteljük a foglalási folyamatot, ha visszatérünk a főoldalra
                 // Így mindig friss dátummal indul a következő foglalás
-                bookingState = { selectedCar: state.cars[0], selectedServices: [], selectedDate: null, selectedTime: null, step: 1 };
+                const userCars = getUserCars();
+                bookingState = { selectedCar: userCars[0] || null, selectedServices: [], selectedDate: null, selectedTime: null, step: 1 };
             }
             render();
         }
@@ -398,11 +504,146 @@
             const app = document.getElementById('app');
             app.innerHTML = '';
 
+            // Ha nincs bejelentkezve, Login/Register UI
+            if (!state.currentUser) {
+                app.appendChild(renderAuth());
+                return;
+            }
+
+            // Ha be van jelentkezve, normál routing
             if (currentView === '/') {
                 app.appendChild(renderGarage());
             } else if (currentView === '/booking') {
                 app.appendChild(renderBooking());
+            } else if (currentView === '/bookings') {
+                app.appendChild(renderBookings());
             }
+        }
+
+        // ===== AUTH VIEW =====
+        function renderAuth() {
+            const container = document.createElement('div');
+            container.style.cssText = 'max-width: 400px; margin: 50px auto; padding: 24px;';
+
+            container.innerHTML = `
+                <div style="text-align: center; margin-bottom: 32px;">
+                    <h1 style="font-size: 2rem; font-weight: 700; margin-bottom: 8px;">🚗 Garázs App</h1>
+                    <p style="color: var(--color-text-muted);">Jelentkezz be vagy regisztrálj</p>
+                </div>
+                
+                <div id="auth-tabs" style="display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid var(--bg-tile);">
+                    <button id="tab-login" class="auth-tab active" style="flex: 1; padding: 12px; background: none; border: none; color: var(--color-text-muted); cursor: pointer; font-size: 1rem; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s;">
+                        Bejelentkezés
+                    </button>
+                    <button id="tab-register" class="auth-tab" style="flex: 1; padding: 12px; background: none; border: none; color: var(--color-text-muted); cursor: pointer; font-size: 1rem; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s;">
+                        Regisztráció
+                    </button>
+                </div>
+                
+                <div id="login-form" style="display: block;">
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Felhasználónév</label>
+                        <input type="text" id="login-username" style="width: 100%; padding: 12px; background: var(--bg-tile); border: none; border-radius: 6px; color: white; font-size: 1rem;">
+                    </div>
+                    <div style="margin-bottom: 24px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Jelszó</label>
+                        <input type="password" id="login-password" style="width: 100%; padding: 12px; background: var(--bg-tile); border: none; border-radius: 6px; color: white; font-size: 1rem;">
+                    </div>
+                    <button id="login-btn" class="btn-primary">Bejelentkezés</button>
+                    <p id="login-error" style="color: var(--color-danger); margin-top: 12px; display: none;">Hibás felhasználónév vagy jelszó!</p>
+                </div>
+                
+                <div id="register-form" style="display: none;">
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Felhasználónév</label>
+                        <input type="text" id="register-username" style="width: 100%; padding: 12px; background: var(--bg-tile); border: none; border-radius: 6px; color: white; font-size: 1rem;">
+                    </div>
+                    <div style="margin-bottom: 24px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Jelszó</label>
+                        <input type="password" id="register-password" style="width: 100%; padding: 12px; background: var(--bg-tile); border: none; border-radius: 6px; color: white; font-size: 1rem;">
+                    </div>
+                    <button id="register-btn" class="btn-primary">Regisztráció</button>
+                    <p id="register-error" style="color: var(--color-danger); margin-top: 12px; display: none;">Ez a felhasználónév már foglalt!</p>
+                </div>
+            `;
+
+            // Tab váltás
+            const loginTab = container.querySelector('#tab-login');
+            const registerTab = container.querySelector('#tab-register');
+            const loginForm = container.querySelector('#login-form');
+            const registerForm = container.querySelector('#register-form');
+
+            loginTab.onclick = () => {
+                loginTab.classList.add('active');
+                registerTab.classList.remove('active');
+                loginTab.style.color = 'var(--color-accent)';
+                loginTab.style.borderBottomColor = 'var(--color-accent)';
+                registerTab.style.color = 'var(--color-text-muted)';
+                registerTab.style.borderBottomColor = 'transparent';
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+            };
+
+            registerTab.onclick = () => {
+                registerTab.classList.add('active');
+                loginTab.classList.remove('active');
+                registerTab.style.color = 'var(--color-accent)';
+                registerTab.style.borderBottomColor = 'var(--color-accent)';
+                loginTab.style.color = 'var(--color-text-muted)';
+                loginTab.style.borderBottomColor = 'transparent';
+                registerForm.style.display = 'block';
+                loginForm.style.display = 'none';
+            };
+
+            // Login
+            container.querySelector('#login-btn').onclick = () => {
+                const username = container.querySelector('#login-username').value.trim();
+                const password = container.querySelector('#login-password').value;
+                const error = container.querySelector('#login-error');
+
+                if (!username || !password) {
+                    error.textContent = 'Kérlek töltsd ki mindkét mezőt!';
+                    error.style.display = 'block';
+                    return;
+                }
+
+                if (login(username, password)) {
+                    render(); // Újratöltjük az appot a bejelentkezett állapottal
+                } else {
+                    error.style.display = 'block';
+                }
+            };
+
+            // Register
+            container.querySelector('#register-btn').onclick = () => {
+                const username = container.querySelector('#register-username').value.trim();
+                const password = container.querySelector('#register-password').value;
+                const error = container.querySelector('#register-error');
+
+                if (!username || !password) {
+                    error.textContent = 'Kérlek töltsd ki mindkét mezőt!';
+                    error.style.display = 'block';
+                    return;
+                }
+
+                if (username.length < 3) {
+                    error.textContent = 'A felhasználónév legalább 3 karakter legyen!';
+                    error.style.display = 'block';
+                    return;
+                }
+
+                if (register(username, password)) {
+                    render(); // Újratöltjük az appot a bejelentkezett állapottal
+                } else {
+                    error.style.display = 'block';
+                }
+            };
+
+            // Active tab styling
+            loginTab.style.color = 'var(--color-accent)';
+            loginTab.style.borderBottomColor = 'var(--color-accent)';
+
+            return container;
         }
 
         // ===== GARAGE VIEW =====
@@ -410,11 +651,23 @@
             const container = document.createElement('div');
 
             container.innerHTML = `
-                <div style="margin-bottom: 24px;">
-                    <h1 style="font-size: 2rem; font-weight: 700;">Garázs</h1>
-                    <p style="color: var(--color-text-muted);">Üdv újra!</p>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <div>
+                        <h1 style="font-size: 2rem; font-weight: 700;">Garázs</h1>
+                        <p style="color: var(--color-text-muted);">Üdv, ${state.currentUser.username}!</p>
+                    </div>
+                    <button id="logout-btn" style="padding: 8px 16px; background: var(--bg-tile); border: none; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; font-size: 0.9rem;">
+                        Kijelentkezés
+                    </button>
                 </div>
             `;
+
+            container.querySelector('#logout-btn').onclick = () => {
+                if (confirm('Biztosan kijelentkezel?')) {
+                    logout();
+                    render();
+                }
+            };
 
             const nextBooking = getNextBooking();
             if (nextBooking) {
@@ -456,7 +709,9 @@
             const grid = document.createElement('div');
             grid.className = 'tile-grid';
 
-            if (state.cars.length === 0) {
+            const userCars = getUserCars();
+
+            if (userCars.length === 0) {
                 const addCarTile = createTile({
                     title: 'Parkold le az autódat',
                     subtitle: 'Koppints ide az első autód felvételéhez',
@@ -473,7 +728,7 @@
                 addCarTile.style.border = '1px solid var(--color-accent)';
                 grid.appendChild(addCarTile);
             } else {
-                state.cars.forEach(car => {
+                userCars.forEach(car => {
                     grid.appendChild(createTile({
                         title: car.plate,
                         subtitle: car.type || 'Személyautó',
@@ -496,11 +751,134 @@
                 }));
             }
 
-            grid.appendChild(createTile({ title: 'Előzmények', subtitle: 'Korábbi tisztítások', icon: '📅', onClick: () => alert('Hamarosan') }));
+            grid.appendChild(createTile({ title: 'Foglalásaim', subtitle: 'Aktív és korábbi', icon: '📅', onClick: () => navigate('/bookings') }));
             grid.appendChild(createTile({ title: 'Profil', icon: '👤', onClick: () => alert('Hamarosan') }));
 
             container.appendChild(grid);
             return container;
+        }
+
+        // ===== BOOKINGS VIEW =====
+        function renderBookings() {
+            const container = document.createElement('div');
+
+            const bookings = state.currentUser?.bookings || [];
+            const activeBookings = bookings.filter(b => !['completed', 'cancelled'].includes(b.status));
+            const completedBookings = bookings.filter(b => b.status === 'completed');
+            const cancelledBookings = bookings.filter(b => b.status === 'cancelled');
+
+            container.innerHTML = `
+                <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+                    <h1 style="font-size: 2rem; font-weight: 700;">Foglalásaim</h1>
+                    <button onclick="navigate('/')" style="padding: 8px 16px; background: var(--bg-tile); border: none; border-radius: 6px; color: var(--color-text-muted); cursor: pointer;">
+                        ← Vissza
+                    </button>
+                </div>
+            `;
+
+            // Aktív foglalások
+            const activeSection = document.createElement('div');
+            activeSection.style.marginBottom = '32px';
+            activeSection.innerHTML = `<h2 style="font-size: 1.3rem; margin-bottom: 16px;">🔔 Aktív foglalások (${activeBookings.length})</h2>`;
+
+            if (activeBookings.length === 0) {
+                activeSection.innerHTML += '<p style="color: var(--color-text-muted); padding: 20px; background: var(--bg-tile); border-radius: 8px; text-align: center;">Nincs aktív foglalásod</p>';
+            } else {
+                activeBookings.sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time)).forEach(booking => {
+                    const card = createBookingCard(booking, true);
+                    activeSection.appendChild(card);
+                });
+            }
+            container.appendChild(activeSection);
+
+            // Lemondott foglalások
+            const cancelledSection = document.createElement('div');
+            cancelledSection.style.marginBottom = '32px';
+            cancelledSection.innerHTML = `<h2 style="font-size: 1.3rem; margin-bottom: 16px;">❌ Lemondott foglalások (${cancelledBookings.length})</h2>`;
+
+            if (cancelledBookings.length === 0) {
+                cancelledSection.innerHTML += '<p style="color: var(--color-text-muted); padding: 20px; background: var(--bg-tile); border-radius: 8px; text-align: center;">Nincs lemondott foglalásod</p>';
+            } else {
+                cancelledBookings.sort((a, b) => new Date(b.cancelledAt || b.date) - new Date(a.cancelledAt || a.date)).forEach(booking => {
+                    const card = createBookingCard(booking, false);
+                    cancelledSection.appendChild(card);
+                });
+            }
+            container.appendChild(cancelledSection);
+
+            // Elvégzett foglalások
+            const completedSection = document.createElement('div');
+            completedSection.innerHTML = `<h2 style="font-size: 1.3rem; margin-bottom: 16px;">✅ Elvégzett munkák (${completedBookings.length})</h2>`;
+
+            if (completedBookings.length === 0) {
+                completedSection.innerHTML += '<p style="color: var(--color-text-muted); padding: 20px; background: var(--bg-tile); border-radius: 8px; text-align: center;">Még nincs elvégzett munka</p>';
+            } else {
+                completedBookings.sort((a, b) => new Date(b.date + 'T' + b.time) - new Date(a.date + 'T' + a.time)).forEach(booking => {
+                    const card = createBookingCard(booking, false);
+                    completedSection.appendChild(card);
+                });
+            }
+            container.appendChild(completedSection);
+
+            return container;
+        }
+
+        function createBookingCard(booking, isActive) {
+            const card = document.createElement('div');
+            card.style.cssText = 'background: var(--bg-tile); padding: 16px; border-radius: 8px; margin-bottom: 12px;';
+
+            const services = Array.isArray(booking.services) ? booking.services : [booking.service];
+            const serviceNames = services.map(s => s.name).join(', ');
+            const totalPrice = services.reduce((sum, s) => sum + s.price, 0);
+
+            const statusText = {
+                'pending': 'Várakozik',
+                'on_way': 'Úton vagyok',
+                'arrived': 'Megérkeztem',
+                'in_progress': 'Folyamatban',
+                'completed': 'Kész',
+                'cancelled': 'Lemondva'
+            };
+
+            const statusColor = {
+                'pending': '#a0a0a0',
+                'on_way': '#60cdff',
+                'arrived': '#ffa500',
+                'in_progress': '#ffeb3b',
+                'completed': '#4caf50',
+                'cancelled': '#ff4d4f'
+            };
+
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 1.1rem;">${booking.date} ${booking.time}</div>
+                        <div style="color: var(--color-text-muted); font-size: 0.9rem; margin-top: 4px;">${serviceNames}</div>
+                        <div style="color: ${statusColor[booking.status]}; font-size: 0.9rem; margin-top: 8px; font-weight: 600;">
+                            ${statusText[booking.status]}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-weight: 700; font-size: 1.2rem;">${totalPrice.toLocaleString()} Ft</div>
+                        ${isActive && booking.status === 'pending' ? `
+                            <button onclick="handleCancelBooking('${booking.id}')" style="margin-top: 8px; padding: 6px 12px; background: var(--color-danger); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
+                                Lemondás
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+                ${booking.cancelledAt ? `<div style="color: var(--color-text-muted); font-size: 0.8rem; margin-top: 8px;">Lemondva: ${new Date(booking.cancelledAt).toLocaleString('hu-HU')}</div>` : ''}
+            `;
+
+            return card;
+        }
+
+        function handleCancelBooking(bookingId) {
+            if (confirm('Biztosan lemondod ezt a foglalást?')) {
+                if (cancelBooking(bookingId)) {
+                    navigate('/bookings'); // Reload
+                }
+            }
         }
 
         // ===== BOOKING VIEW =====
@@ -509,7 +887,9 @@
         function renderBooking() {
             const container = document.createElement('div');
 
-            if (!state.cars || state.cars.length === 0) {
+            const userCars = getUserCars();
+
+            if (!userCars || userCars.length === 0) {
                 container.innerHTML = `
                     <div style="text-align: center; padding: 40px;">
                         <h2>Nincs autód a garázsban</h2>
@@ -722,6 +1102,83 @@
 
         function renderSummary() {
             const section = document.createElement('div');
+            section.style.cssText = 'animation: fadeIn 0.3s;';
+
+            const totalDuration = bookingState.selectedServices.reduce((sum, s) => sum + s.duration, 0);
+            const totalPrice = bookingState.selectedServices.reduce((sum, s) => sum + s.price, 0);
+
+            // Összefoglaló kártya
+            const card = document.createElement('div');
+            card.className = 'admin-card';
+            card.style.marginBottom = '24px';
+            card.innerHTML = `
+                <h2 style="margin-bottom: 24px;">📋 Foglalás összefoglalója</h2>
+                
+                <div style="margin-bottom: 16px;">
+                    <div style="color: var(--color-text-muted); font-size: 0.9rem;">Autó</div>
+                    <div style="font-weight: 600; font-size: 1.1rem;">🚗 ${bookingState.selectedCar.plate}</div>
+                </div>
+                
+                <div style="margin-bottom: 16px;">
+                    <div style="color: var(--color-text-muted); font-size: 0.9rem;">Időpont</div>
+                    <div style="font-weight: 600; font-size: 1.1rem;">📅 ${bookingState.selectedDate} ${bookingState.selectedTime}</div>
+                </div>
+                
+                <div style="margin-bottom: 16px;">
+                    <div style="color: var(--color-text-muted); font-size: 0.9rem; margin-bottom: 8px;">Szolgáltatások</div>
+                    ${bookingState.selectedServices.map(s => `
+                        <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 6px; margin-bottom: 8px;">
+                            <div style="font-weight: 600;">${s.icon || ''} ${s.name}</div>
+                            <div style="color: var(--color-text-muted); font-size: 0.9rem; margin-top: 4px;">${s.duration} perc • ${s.price.toLocaleString()} Ft</div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div style="border-top: 2px solid var(--color-accent); padding-top: 16px; margin-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 1.3rem; font-weight: 700;">
+                        <span>Összesen:</span>
+                        <span>${totalPrice.toLocaleString()} Ft</span>
+                    </div>
+                    <div style="color: var(--color-text-muted); font-size: 0.9rem; margin-top: 4px; text-align: right;">
+                        ${totalDuration} perc
+                    </div>
+                </div>
+            `;
+            section.appendChild(card);
+
+            // Megerősítés gomb
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = 'btn-primary';
+            confirmBtn.textContent = '✅ Foglalás megerősítése';
+            confirmBtn.style.marginBottom = '12px';
+            confirmBtn.onclick = () => {
+                const newBooking = {
+                    id: Date.now().toString(),
+                    car: bookingState.selectedCar,
+                    date: bookingState.selectedDate,
+                    time: bookingState.selectedTime,
+                    services: bookingState.selectedServices,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                };
+
+                addBooking(newBooking);
+
+                // Reset booking state
+                const userCars = getUserCars();
+                bookingState = { selectedCar: userCars[0] || null, selectedServices: [], selectedDate: null, selectedTime: null, step: 1 };
+
+                // Sikeres foglalás üzenet
+                alert('✅ Foglalás sikeresen létrehozva!\n\nTovábbítás a főoldalra...');
+                navigate('/');
+            };
+            section.appendChild(confirmBtn);
+
+            return section;
+        }
+
+        function renderSummary() {
+            const section = document.createElement('div');
             const totalDuration = bookingState.selectedServices.reduce((sum, s) => sum + s.duration, 0);
             const totalPrice = bookingState.selectedServices.reduce((sum, s) => sum + s.price, 0);
 
@@ -742,18 +1199,23 @@
             confirmBtn.textContent = 'Foglalás véglegesítése';
             confirmBtn.className = 'btn-primary';
             confirmBtn.onclick = () => {
-                if (!state.bookings) state.bookings = [];
-                state.bookings.push({
-                    id: Date.now(),
+                const newBooking = {
+                    id: Date.now().toString(),
                     car: bookingState.selectedCar,
-                    services: bookingState.selectedServices,
                     date: bookingState.selectedDate,
                     time: bookingState.selectedTime,
+                    services: bookingState.selectedServices,
                     status: 'pending',
-                    createdAt: new Date()
-                });
-                saveStore();
-                bookingState = { step: 1, selectedCar: state.cars[0], selectedServices: [], selectedDate: null, selectedTime: null };
+                    createdAt: new Date().toISOString()
+                };
+
+                // Használjuk az addBooking() helper-t ami currentUser.bookings-hoz adja
+                addBooking(newBooking);
+
+                // Reset booking state
+                const userCars = getUserCars();
+                bookingState = { selectedCar: userCars[0] || null, selectedServices: [], selectedDate: null, selectedTime: null, step: 1 };
+
                 alert('✅ Foglalás sikeres!');
                 navigate('/');
             };

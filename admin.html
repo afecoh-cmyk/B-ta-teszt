@@ -334,12 +334,21 @@
 <body>
     <div id="app">
         <div class="header">
-            <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 8px;">⚙️ Admin Panel</h1>
-            <p style="color: var(--color-text-muted);">Teljes kontroll a rendszer felett</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 8px;">⚙️ Admin Panel</h1>
+                    <p style="color: var(--color-text-muted);">Teljes kontroll a rendszer felett • Auto-sync: 30s</p>
+                </div>
+                <button id="sync-btn" onclick="manualSync()" class="btn"
+                    style="background: var(--color-accent); color: white; padding: 12px 24px; font-size: 0.95rem;">
+                    🔄 Szinkronizálás
+                </button>
+            </div>
         </div>
 
         <div class="tabs">
             <button class="tab active" onclick="switchTab('workload')">Munkalista</button>
+            <button class="tab" onclick="switchTab('users')">Felhasználók</button>
             <button class="tab" onclick="switchTab('services')">Szolgáltatások</button>
             <button class="tab" onclick="switchTab('settings')">Beállítások</button>
         </div>
@@ -347,8 +356,13 @@
         <!-- MUNKALISTA TAB -->
         <div id="tab-workload" class="tab-content active">
             <div id="stats" class="stats"></div>
-            <h2 style="margin-bottom: 16px;">Mai munkák</h2>
             <div id="bookings"></div>
+        </div>
+
+        <!-- FELHASZNÁLÓK TAB -->
+        <div id="tab-users" class="tab-content">
+            <h2 style="margin-bottom: 16px;">Regisztrált felhasználók</h2>
+            <div id="users-list"></div>
         </div>
 
         <!-- SZOLGÁLTATÁSOK TAB -->
@@ -446,8 +460,9 @@
     <script>
         const STORAGE_KEY = 'garazs_app_data';
         let state = {
-            cars: [],
-            bookings: [],
+            users: [],       // Új: összes felhasználó
+            cars: [],        // Deprecated, de megtartjuk kompatibilitásért
+            bookings: [],    // Deprecated, de megtartjuk kompatibilitásért
             services: [],
             settings: {
                 openingHours: {
@@ -519,76 +534,227 @@
             document.getElementById(`tab-${tabName}`).classList.add('active');
 
             if (tabName === 'workload') renderWorkload();
+            if (tabName === 'users') renderUsers();
             if (tabName === 'services') renderServices();
             if (tabName === 'settings') renderSettings();
         }
 
+        // FELHASZNÁLÓK
+        function renderUsers() {
+            const usersList = document.getElementById('users-list');
+
+            if (!state.users || state.users.length === 0) {
+                usersList.innerHTML = '<p style="color: var(--color-text-muted); padding: 40px; text-align: center;">Még nincs regisztrált felhasználó</p>';
+                return;
+            }
+
+            usersList.innerHTML = '';
+            state.users.forEach(user => {
+                const userCard = document.createElement('div');
+                userCard.className = 'admin-card';
+                userCard.style.marginBottom = '16px';
+
+                const carsCount = user.cars?.length || 0;
+                const bookingsCount = user.bookings?.length || 0;
+                const activeBookings = user.bookings?.filter(b => !['completed', 'cancelled'].includes(b.status)).length || 0;
+
+                userCard.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div>
+                            <h3 style="margin-bottom: 8px;">👤 ${user.username}</h3>
+                            <div style="color: var(--color-text-muted); font-size: 0.9rem;">
+                                <div>🚗 Autók: ${carsCount}</div>
+                                <div>📅 Foglalások összesen: ${bookingsCount}</div>
+                                <div>🔔 Aktív foglalások: ${activeBookings}</div>
+                            </div>
+                        </div>
+                        <button onclick="deleteUser(${user.id})" class="btn" style="background: var(--color-danger); color: white;">
+                            Törlés
+                        </button>
+                    </div>
+                `;
+
+                // Autók listája
+                if (carsCount > 0) {
+                    const carsDiv = document.createElement('div');
+                    carsDiv.style.cssText = 'margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);';
+                    carsDiv.innerHTML = '<h4 style="margin-bottom: 12px; font-size: 0.95rem;">Autók:</h4>';
+
+                    user.cars.forEach((car, idx) => {
+                        const carItem = document.createElement('div');
+                        carItem.style.cssText = 'background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;';
+                        carItem.innerHTML = `
+                            <span>🚘 ${car.plate} - ${car.type || 'N/A'}</span>
+                            <button onclick="deleteUserCar(${user.id}, ${idx})" class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: var(--color-danger); color: white;">
+                                Törlés
+                            </button>
+                        `;
+                        carsDiv.appendChild(carItem);
+                    });
+
+                    userCard.appendChild(carsDiv);
+                }
+
+                usersList.appendChild(userCard);
+            });
+        }
+
+        function deleteUser(userId) {
+            const user = state.users.find(u => u.id === userId);
+            if (!user) return;
+
+            const bookingsCount = user.bookings?.length || 0;
+
+            if (!confirm(`Biztosan törölni szeretnéd ezt a felhasználót?\n\nFelhasználó: ${user.username}\nAutók: ${user.cars?.length || 0}\nFoglalások: ${bookingsCount}\n\nEz visszavonhatatlan és minden foglalás törlődik (időpontok felszabadulnak)!`)) return;
+
+            state.users = state.users.filter(u => u.id !== userId);
+            saveState();
+
+            // Frissítjük a munkalapot is, ha van aktív foglalás
+            if (bookingsCount > 0) {
+                renderWorkload();
+            }
+
+            renderUsers();
+        }
+
+        function deleteUserCar(userId, carIndex) {
+            if (!confirm('Biztosan törölni szeretnéd ezt az autót?')) return;
+            const user = state.users.find(u => u.id === userId);
+            if (user && user.cars) {
+                user.cars.splice(carIndex, 1);
+                saveState();
+                renderUsers();
+            }
+        }
+
         // MUNKALISTA
         function renderWorkload() {
+            // Összes foglalás összegyűjtése minden userből
+            const allBookings = [];
+            (state.users || []).forEach(user => {
+                (user.bookings || []).forEach(booking => {
+                    allBookings.push({ ...booking, username: user.username });
+                });
+            });
+
             const today = new Date().toISOString().split('T')[0];
-            const todayBookings = (state.bookings || []).filter(b => b.date === today);
+            const todayBookings = allBookings.filter(b => b.date === today && b.status !== 'cancelled');
+            const futureBookings = allBookings.filter(b => b.date > today && !['completed', 'cancelled'].includes(b.status));
+            const cancelledBookings = allBookings.filter(b => b.status === 'cancelled');
+            const completedBookings = allBookings.filter(b => b.status === 'completed');
+
             const pending = todayBookings.filter(b => b.status === 'pending').length;
             const inProgress = todayBookings.filter(b => b.status === 'in_progress' || b.status === 'on_way' || b.status === 'arrived').length;
-            const completed = todayBookings.filter(b => b.status === 'completed').length;
 
             document.getElementById('stats').innerHTML = `
                 <div class="stat-card">
                     <div class="stat-number">${todayBookings.length}</div>
-                    <div class="stat-label">Összes mai</div>
+                    <div class="stat-label">Mai munkák</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${pending}</div>
-                    <div class="stat-label">Várakozik</div>
+                    <div class="stat-number">${futureBookings.length}</div>
+                    <div class="stat-label">Jövőbeli</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${inProgress}</div>
-                    <div class="stat-label">Folyamatban</div>
+                    <div class="stat-number">${cancelledBookings.length}</div>
+                    <div class="stat-label">Lemondva</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${completed}</div>
-                    <div class="stat-label">Kész</div>
+                    <div class="stat-number">${completedBookings.length}</div>
+                    <div class="stat-label">Elvégezve</div>
                 </div>
             `;
 
-            const activeBookings = todayBookings.filter(b => b.status !== 'completed').sort((a, b) => a.time.localeCompare(b.time));
             const bookingsEl = document.getElementById('bookings');
-
-            if (activeBookings.length === 0) {
-                bookingsEl.innerHTML = `
-                    <div style="text-align: center; padding: 60px; color: var(--color-text-muted);">
-                        <h2 style="font-size: 3rem; margin-bottom: 16px;">🎉</h2>
-                        <h3>Nincs aktív munka</h3>
-                        <p style="margin-top: 8px;">Minden kész mára!</p>
-                    </div>
-                `;
-                return;
-            }
-
             bookingsEl.innerHTML = '';
-            activeBookings.forEach(booking => {
-                const card = document.createElement('div');
-                card.className = `admin-card status-${booking.status}`;
 
-                const statusText = {
-                    'pending': 'Várakozik',
-                    'on_way': 'Úton vagyok',
-                    'arrived': 'Megérkeztem',
-                    'in_progress': 'Folyamatban'
-                };
+            // 1. MAI MUNKÁK
+            const todaySection = document.createElement('div');
+            todaySection.style.marginBottom = '32px';
+            todaySection.innerHTML = '<h2 style="margin-bottom: 16px;">🔥 Mai munkák</h2>';
 
-                const statusColor = {
-                    'pending': '#a0a0a0',
-                    'on_way': '#60cdff',
-                    'arrived': '#ffa500',
-                    'in_progress': '#ffeb3b'
-                };
+            if (todayBookings.length === 0) {
+                todaySection.innerHTML += '<p style="color: var(--color-text-muted); padding: 20px; background: var(--bg-tile); border-radius: 8px; text-align: center;">Nincs mai munka</p>';
+            } else {
+                todayBookings.sort((a, b) => a.time.localeCompare(b.time)).forEach(booking => {
+                    todaySection.appendChild(createAdminBookingCard(booking));
+                });
+            }
+            bookingsEl.appendChild(todaySection);
 
-                // Szolgáltatások megjelenítése
-                const services = Array.isArray(booking.services) ? booking.services : [booking.service];
-                const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
-                const totalPrice = services.reduce((sum, s) => sum + s.price, 0);
+            // 2. JÖVŐBELI MUNKÁK
+            const futureSection = document.createElement('div');
+            futureSection.style.marginBottom = '32px';
+            futureSection.innerHTML = '<h2 style="margin-bottom: 16px;">📅 Jövőbeli munkák</h2>';
 
-                card.innerHTML = `
+            if (futureBookings.length === 0) {
+                futureSection.innerHTML += '<p style="color: var(--color-text-muted); padding: 20px; background: var(--bg-tile); border-radius: 8px; text-align: center;">Nincs jövőbeli munka</p>';
+            } else {
+                futureBookings.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).forEach(booking => {
+                    futureSection.appendChild(createAdminBookingCard(booking));
+                });
+            }
+            bookingsEl.appendChild(futureSection);
+
+            // 3. LEMONDOTT FOGLALÁSOK
+            const cancelledSection = document.createElement('div');
+            cancelledSection.style.marginBottom = '32px';
+            cancelledSection.innerHTML = '<h2 style="margin-bottom: 16px;">❌ Lemondott foglalások</h2>';
+
+            if (cancelledBookings.length === 0) {
+                cancelledSection.innerHTML += '<p style="color: var(--color-text-muted); padding: 20px; background: var(--bg-tile); border-radius: 8px; text-align: center;">Nincs lemondott foglalás</p>';
+            } else {
+                cancelledBookings.sort((a, b) => new Date(b.cancelledAt || b.date) - new Date(a.cancelledAt || a.date)).forEach(booking => {
+                    const card = createAdminBookingCard(booking);
+                    card.style.opacity = '0.6';
+                    cancelledSection.appendChild(card);
+                });
+            }
+            bookingsEl.appendChild(cancelledSection);
+
+            // 4. ELVÉGZETT MUNKÁK (utolsó 20)
+            const completedSection = document.createElement('div');
+            completedSection.innerHTML = '<h2 style="margin-bottom: 16px;">✅ Elvégzett munkák (utolsó 20)</h2>';
+
+            if (completedBookings.length === 0) {
+                completedSection.innerHTML += '<p style="color: var(--color-text-muted); padding: 20px; background: var(--bg-tile); border-radius: 8px; text-align: center;">Még nincs elvégzett munka</p>';
+            } else {
+                completedBookings.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)).slice(0, 20).forEach(booking => {
+                    completedSection.appendChild(createAdminBookingCard(booking));
+                });
+            }
+            bookingsEl.appendChild(completedSection);
+        }
+
+        function createAdminBookingCard(booking) {
+            const card = document.createElement('div');
+            card.className = `admin-card status-${booking.status}`;
+
+            const statusText = {
+                'pending': 'Várakozik',
+                'on_way': 'Úton vagyok',
+                'arrived': 'Megérkeztem',
+                'in_progress': 'Folyamatban',
+                'completed': 'Kész',
+                'cancelled': 'Lemondva'
+            };
+
+            const statusColor = {
+                'pending': '#a0a0a0',
+                'on_way': '#60cdff',
+                'arrived': '#ffa500',
+                'in_progress': '#ffeb3b',
+                'completed': '#4caf50',
+                'cancelled': '#ff4d4f'
+            };
+
+            // Szolgáltatások megjelenítése
+            const services = Array.isArray(booking.services) ? booking.services : [booking.service];
+            const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
+            const totalPrice = services.reduce((sum, s) => sum + s.price, 0);
+
+            card.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
                         <div>
                             <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 4px;">${booking.time}</div>
@@ -608,59 +774,85 @@
                     </div>
                 `;
 
-                const actions = document.createElement('div');
-                actions.style.display = 'flex';
-                actions.style.gap = '8px';
+            const actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.gap = '8px';
 
-                if (booking.status === 'pending') {
-                    const btn = document.createElement('button');
-                    btn.className = 'action-btn';
-                    btn.textContent = '🚗 Elindultam';
-                    btn.onclick = () => updateBookingStatus(booking.id, 'on_way');
-                    actions.appendChild(btn);
-                }
+            if (booking.status === 'pending') {
+                const btn = document.createElement('button');
+                btn.className = 'action-btn';
+                btn.textContent = '🚗 Elindultam';
+                btn.onclick = () => updateBookingStatus(booking.id, 'on_way');
+                actions.appendChild(btn);
+            }
 
-                if (booking.status === 'on_way') {
-                    const btn = document.createElement('button');
-                    btn.className = 'action-btn';
-                    btn.textContent = '📍 Itt vagyok';
-                    btn.onclick = () => updateBookingStatus(booking.id, 'arrived');
-                    actions.appendChild(btn);
-                }
+            if (booking.status === 'on_way') {
+                const btn = document.createElement('button');
+                btn.className = 'action-btn';
+                btn.textContent = '📍 Itt vagyok';
+                btn.onclick = () => updateBookingStatus(booking.id, 'arrived');
+                actions.appendChild(btn);
+            }
 
-                if (booking.status === 'arrived') {
-                    const btn = document.createElement('button');
-                    btn.className = 'action-btn';
-                    btn.textContent = '🔧 Kezdem';
-                    btn.onclick = () => updateBookingStatus(booking.id, 'in_progress');
-                    actions.appendChild(btn);
-                }
+            if (booking.status === 'arrived') {
+                const btn = document.createElement('button');
+                btn.className = 'action-btn';
+                btn.textContent = '🔧 Kezdem';
+                btn.onclick = () => updateBookingStatus(booking.id, 'in_progress');
+                actions.appendChild(btn);
+            }
 
-                if (booking.status === 'in_progress') {
-                    const btn = document.createElement('button');
-                    btn.className = 'action-btn';
-                    btn.style.background = '#4caf50';
-                    btn.textContent = '✅ Befejeztem';
-                    btn.onclick = () => {
-                        if (confirm('Biztosan befejezted?')) {
-                            updateBookingStatus(booking.id, 'completed');
-                        }
-                    };
-                    actions.appendChild(btn);
-                }
+            if (booking.status === 'in_progress') {
+                const btn = document.createElement('button');
+                btn.className = 'action-btn';
+                btn.style.background = '#4caf50';
+                btn.textContent = '✅ Befejeztem';
+                btn.onclick = () => {
+                    if (confirm('Biztosan befejezted?')) {
+                        updateBookingStatus(booking.id, 'completed');
+                    }
+                };
+                actions.appendChild(btn);
+            }
 
-                card.appendChild(actions);
-                bookingsEl.appendChild(card);
-            });
+            card.appendChild(actions);
+            return card;
         }
 
         function updateBookingStatus(bookingId, status) {
-            const booking = state.bookings?.find(b => b.id === bookingId);
-            if (booking) {
-                booking.status = status;
-                booking.lastUpdated = new Date();
+            // Megkeressük a foglalást a userek között
+            let found = false;
+
+            // 1. Keresés a users tömbben
+            if (state.users) {
+                for (const user of state.users) {
+                    if (user.bookings) {
+                        const booking = user.bookings.find(b => b.id === bookingId);
+                        if (booking) {
+                            booking.status = status;
+                            booking.lastUpdated = new Date();
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 2. Fallback: Search in global bookings (if legacy data exists)
+            if (!found && state.bookings) {
+                const booking = state.bookings.find(b => b.id === bookingId);
+                if (booking) {
+                    booking.status = status;
+                    booking.lastUpdated = new Date();
+                    found = true;
+                }
+            }
+
+            if (found) {
                 saveState();
                 renderWorkload();
+            } else {
+                console.error('Booking not found:', bookingId);
             }
         }
 
@@ -853,11 +1045,36 @@
         // INIT
         loadState();
         renderWorkload();
+
+        // AUTO-SYNC: 30 másodpercenként frissítés (háttérben dolgozik)
         setInterval(() => {
+            loadState(); // Újratöltjük az adatokat localStorage-ból
             if (document.querySelector('#tab-workload.active')) {
                 renderWorkload();
             }
-        }, 5000);
+            if (document.querySelector('#tab-users.active')) {
+                renderUsers();
+            }
+        }, 30000); // 30 másodperc
+
+        // Manuális szinkronizálás függvény
+        function manualSync() {
+            loadState();
+            const activeTab = document.querySelector('.tab.active');
+            if (activeTab.textContent.includes('Munka')) renderWorkload();
+            if (activeTab.textContent.includes('Felhasználók')) renderUsers();
+            if (activeTab.textContent.includes('Szolgáltatások')) renderServices();
+            if (activeTab.textContent.includes('Beállítások')) renderSettings();
+
+            // Vizuális feedback
+            const syncBtn = document.getElementById('sync-btn');
+            if (syncBtn) {
+                syncBtn.textContent = '✅ Frissítve';
+                setTimeout(() => {
+                    syncBtn.textContent = '🔄 Szinkronizálás';
+                }, 1500);
+            }
+        }
     </script>
 </body>
 
