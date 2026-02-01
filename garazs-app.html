@@ -71,6 +71,11 @@
 
         .tile:hover {
             background-color: var(--bg-tile-hover);
+            transform: translateY(-2px);
+        }
+
+        .tile:active {
+            transform: scale(0.98);
         }
 
         .tile-title {
@@ -722,7 +727,8 @@
                     onClick: () => {
                         const plate = prompt('Írd be a rendszámot (pl. ABC-123):');
                         if (plate) {
-                            addCar({ plate, type: 'Ismeretlen', addedAt: new Date() });
+                            const type = prompt('Add meg az autó típusát vagy nevét (pl. Audi A4, Opcionális):');
+                            addCar({ plate, type: type || 'Személyautó', addedAt: new Date() });
                             navigate('/');
                         }
                     }
@@ -905,7 +911,12 @@
                     <div style="margin-bottom: 8px;"><strong style="color: var(--color-text-muted);">Regisztráció:</strong> ${new Date(user.id).toLocaleDateString('hu-HU')}</div>
                 </div>
                 
-                <h2 style="font-size: 1.3rem; margin-bottom: 16px;">🚗 Autóim kezelése</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="font-size: 1.3rem; margin: 0;">🚗 Autóim kezelése</h2>
+                    <button onclick="addNewCar()" style="padding: 6px 12px; background: var(--color-accent); border: none; border-radius: 6px; color: black; font-weight: 600; cursor: pointer; font-size: 0.9rem;">
+                        + Új autó
+                    </button>
+                </div>
             `;
 
             if (cars.length === 0) {
@@ -965,6 +976,15 @@
                 state.currentUser.cars[index].type = newType.trim() || 'Személyautó';
                 saveStore();
                 render(); // Re-render profile
+            }
+        }
+
+        function addNewCar() {
+            const plate = prompt('Írd be az új autó rendszámát (pl. ABC-123):');
+            if (plate) {
+                const type = prompt('Add meg az autó típusát vagy nevét (pl. Audi A4, Opcionális):');
+                addCar({ plate, type: type || 'Személyautó', addedAt: new Date() });
+                render(); // Reload profile
             }
         }
 
@@ -1337,8 +1357,6 @@
             `;
 
             tile.onclick = () => {
-                tile.style.transform = 'scale(0.98)';
-                setTimeout(() => tile.style.transform = 'scale(1)', 100);
                 if (onClick) onClick();
             };
 
