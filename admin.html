@@ -796,9 +796,9 @@
                 if (diffMin > 0) {
                     const hours = Math.floor(diffMin / 60);
                     const mins = diffMin % 60;
-                    timeInfo = `<div style="color: var(--color-accent); font-weight: 600; margin-top: 4px;">⏳ Érkezés: ${hours > 0 ? hours + 'ó ' : ''}${mins}p múlva</div>`;
+                    timeInfo = `<div style="color: var(--color-accent); font-weight: 600; margin-top: 4px;">⏳ Érkezés: ${booking.time}-ra (${hours > 0 ? hours + 'ó ' : ''}${mins}p múlva)</div>`;
                 } else if (diffMin > -60) {
-                    timeInfo = `<div style="color: #ff4d4f; font-weight: 600; margin-top: 4px;">⚠️ Késésben: ${Math.abs(diffMin)} perce</div>`;
+                    timeInfo = `<div style="color: #ff4d4f; font-weight: 600; margin-top: 4px;">⚠️ Késésben: ${Math.abs(diffMin)} perce (Cél: ${booking.time})</div>`;
                 }
             }
 
