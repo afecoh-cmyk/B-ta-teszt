@@ -1,11 +1,13 @@
 import { renderGarage } from '../views/GarageView.js';
 import { renderBooking } from '../views/BookingView.js';
 import { renderAdmin } from '../views/AdminView.js';
+import { renderProfile } from '../views/ProfileView.js';
 
 const routes = {
     '/': renderGarage,
     '/booking': renderBooking,
     '/admin': renderAdmin,
+    '/profile': renderProfile,
 };
 
 export function initRouter() {

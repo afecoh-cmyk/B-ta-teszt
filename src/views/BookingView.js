@@ -43,7 +43,7 @@ export function renderBooking() {
   const header = document.createElement('div');
   header.style.marginBottom = '24px';
   header.innerHTML = `
-    <button onclick="window.location.hash='/'" style="
+    <button id="back-btn" style="
       background: none;
       border: none;
       color: var(--color-accent);
@@ -72,6 +72,17 @@ export function renderBooking() {
     stepIndicator.appendChild(dot);
   }
   container.appendChild(stepIndicator);
+
+  // Eseménykezelő a Vissza gombhoz
+  container.querySelector('#back-btn').onclick = () => {
+    if (bookingState.step > 1) {
+      bookingState.step--;
+      // Router újrahívása (mivel a hash nem változik, manuálisan elsütjük az eventet)
+      window.dispatchEvent(new Event('hashchange'));
+    } else {
+      navigate('/');
+    }
+  };
 
   // Lépések renderelése
   if (bookingState.step === 1) {
@@ -105,7 +116,8 @@ function renderServiceSelection() {
       onClick: () => {
         bookingState.selectedService = service;
         bookingState.step = 2;
-        navigate('/booking'); // Újrarajzolás
+        bookingState.step = 2;
+        window.dispatchEvent(new Event('hashchange')); // Frissítés navigate helyett
       }
     });
 
@@ -142,23 +154,39 @@ function renderTimeSelection() {
 
     dates.forEach(date => {
       const tile = document.createElement('div');
+      const isClosed = date.isClosed;
+
       tile.style.cssText = `
         min-width: 80px;
         padding: 12px;
-        background: var(--bg-tile);
+        background: ${isClosed ? 'rgba(255,255,255,0.02)' : 'var(--bg-tile)'};
         border-radius: var(--radius-tile);
         text-align: center;
-        cursor: pointer;
+        cursor: ${isClosed ? 'not-allowed' : 'pointer'};
         transition: all 0.2s;
-        border: 2px solid transparent;
+        border: 2px solid ${bookingState.selectedDate === date.value ? 'var(--color-accent)' : 'transparent'};
+        opacity: ${isClosed ? '0.5' : '1'};
       `;
-      tile.innerHTML = `<div style="font-weight: 600;">${date.label}</div>`;
 
-      tile.onclick = () => {
-        bookingState.selectedDate = date.value;
-        document.querySelectorAll('[data-date-tile]').forEach(t => t.style.border = '2px solid transparent');
-        tile.style.border = '2px solid var(--color-accent)';
-      };
+      let labelHtml = `<div style="font-weight: 600;">${date.label}</div>`;
+      if (isClosed) {
+        labelHtml += `<div style="font-size: 0.75rem; color: var(--color-danger); margin-top: 4px;">ZÁRVA</div>`;
+      }
+
+      tile.innerHTML = labelHtml;
+
+      if (!isClosed) {
+        tile.onclick = () => {
+          bookingState.selectedDate = date.value;
+          document.querySelectorAll('[data-date-tile]').forEach(t => {
+            // Reset border, but keep styling based on closed state logic implicitly handled by redraw or simple class toggle. 
+            // Egyszerűbb ha mindent alapra állítunk és a jelenlegit kiemeljük.
+            t.style.borderColor = 'transparent';
+          });
+          tile.style.borderColor = 'var(--color-accent)';
+        };
+      }
+
       tile.setAttribute('data-date-tile', '');
       dateGrid.appendChild(tile);
     });
@@ -187,7 +215,8 @@ function renderTimeSelection() {
           }
           bookingState.selectedTime = time;
           bookingState.step = 3;
-          navigate('/booking');
+          bookingState.step = 3;
+          window.dispatchEvent(new Event('hashchange'));
         }
       });
       timeGrid.appendChild(tile);

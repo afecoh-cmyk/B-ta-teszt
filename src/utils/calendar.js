@@ -14,7 +14,8 @@ export function generateCalendarDates() {
         dates.push({
             value: date.toISOString().split('T')[0],
             label: i === 0 ? 'Ma' : i === 1 ? 'Holnap' : `${dayNames[date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}`,
-            date: date
+            date: date,
+            isClosed: date.getDay() === 0 || date.getDay() === 6 // Vasárnap (0) vagy Szombat (6)
         });
     }
 

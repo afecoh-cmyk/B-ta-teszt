@@ -2,7 +2,8 @@ const STORAGE_KEY = 'garazs_app_data';
 
 export const state = {
     cars: [],
-    user: null
+    user: null,
+    news: []
 };
 
 export function initStore() {
@@ -12,6 +13,7 @@ export function initStore() {
             const parsed = JSON.parse(stored);
             state.cars = parsed.cars || [];
             state.user = parsed.user || null;
+            state.news = parsed.news || [];
             console.log('Store betöltve:', state);
         } catch (e) {
             console.error('Hiba a mentés olvasásakor:', e);
@@ -31,6 +33,12 @@ export function saveStore() {
 export function addCar(car) {
     state.cars.push(car);
     saveStore();
+    saveStore();
+}
+
+export function deleteCar(plate) {
+    state.cars = state.cars.filter(c => c.plate !== plate);
+    saveStore();
 }
 
 export function updateBookingStatus(bookingId, status) {
@@ -40,4 +48,20 @@ export function updateBookingStatus(bookingId, status) {
         booking.lastUpdated = new Date();
         saveStore();
     }
+}
+
+export function addNews(newsItem) {
+    if (!state.news) state.news = [];
+    state.news.unshift({
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+        ...newsItem
+    });
+    saveStore();
+}
+
+export function deleteNews(id) {
+    if (!state.news) return;
+    state.news = state.news.filter(item => item.id !== id);
+    saveStore();
 }

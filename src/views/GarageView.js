@@ -1,188 +1,169 @@
-import { state, addCar } from '../core/store.js';
-import { createTile } from '../components/Tile.js';
+import { state } from '../core/store.js';
+import { createNewsCard } from '../components/NewsCard.js';
 import { navigate } from '../core/router.js';
 
 export function renderGarage() {
     const container = document.createElement('div');
+    container.className = 'garage-view';
+    container.style.cssText = 'padding-bottom: 80px;'; // Hely a fix gomboknak vagy csak esztétika
 
-    const header = document.createElement('div');
-    header.style.marginBottom = '24px';
-    header.innerHTML = `
-    <h1 style="font-size: 2rem; font-weight: 700;">Garázs</h1>
-    <p style="color: var(--color-text-muted);">Jó újra látni, Feco!</p>
-  `;
-    container.appendChild(header);
-
-    // Visszaszámláló a következő foglaláshoz
+    // 1. HERO SECTION (Legközelebbi foglalás)
     const nextBooking = getNextBooking();
+    const heroSection = document.createElement('div');
+    heroSection.className = 'hero-section';
+    heroSection.style.marginBottom = '24px';
+
     if (nextBooking) {
-        const countdownEl = document.createElement('div');
-        countdownEl.style.cssText = `
-      background: linear-gradient(135deg, var(--color-accent), #4facfe);
-      padding: 16px;
-      border-radius: var(--radius-tile);
-      margin-bottom: 24px;
-      text-align: center;
-      color: white;
-    `;
-        countdownEl.innerHTML = `
-      <div style="font-size: 0.9rem; opacity: 0.9;">Következő foglalás</div>
-      <div style="font-size: 1.5rem; font-weight: 700; margin: 8px 0;" id="countdown-display">
-        Számolás...
-      </div>
-      <div style="font-size: 0.85rem; opacity: 0.8;">
-        ${nextBooking.date} ${nextBooking.time} - ${nextBooking.service.name}
-      </div>
-      <div id="status-display" style="margin-top: 8px; font-weight: 600;"></div>
-    `;
-        container.appendChild(countdownEl);
+        // Aktív foglalás nézet
+        heroSection.innerHTML = `
+            <div style="font-size: 0.9rem; margin-bottom: 4px; opacity: 0.9;">Következő időpont</div>
+            <div style="font-size: 2.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 8px;" id="hero-countdown">
+                Számolás...
+            </div>
+            <div style="font-size: 1.1rem; font-weight: 500;">
+                ${nextBooking.date} ${nextBooking.time}
+            </div>
+            <div style="
+                margin-top: 12px; 
+                display: inline-block; 
+                padding: 4px 12px; 
+                background: rgba(255,255,255,0.2); 
+                border-radius: 20px; 
+                font-size: 0.9rem;
+            ">
+                ${nextBooking.service.name}
+            </div>
+        `;
+        heroSection.style.background = 'linear-gradient(135deg, var(--color-accent), #0078d7)';
+        heroSection.style.padding = '24px';
+        heroSection.style.borderRadius = '16px';
+        heroSection.style.boxShadow = '0 10px 30px -10px var(--color-accent)';
+        heroSection.style.color = 'white';
 
-        // Visszaszámláló frissítése másodpercenként
-        import('../utils/calendar.js').then(({ calculateCountdown }) => {
-            const updateCountdown = () => {
-                const countdown = calculateCountdown(nextBooking.date, nextBooking.time);
-                const display = document.getElementById('countdown-display');
-                const statusDisplay = document.getElementById('status-display');
-
-                if (display) {
-                    if (countdown.expired) {
-                        display.textContent = 'Lejárt';
-                    } else {
-                        display.textContent = countdown.text;
-                    }
-                }
-
-                // Státusz megjelenítése
-                if (statusDisplay && nextBooking.status) {
-                    const statusText = {
-                        'pending': '',
-                        'on_way': '🚗 Úton vagyok',
-                        'arrived': '📍 Megérkeztem',
-                        'in_progress': '🔧 Folyamatban',
-                        'completed': '✅ Kész'
-                    };
-                    statusDisplay.textContent = statusText[nextBooking.status] || '';
-                }
-            };
-
-            updateCountdown();
-            setInterval(updateCountdown, 1000);
-        });
-    }
-
-    // Grid konténer
-    const grid = document.createElement('div');
-    grid.className = 'tile-grid';
-    container.appendChild(grid);
-
-    // Autók renderelése
-    if (state.cars.length === 0) {
-        // ÜRES ÁLLAPOT: "Adj hozzá autót" csempe (Nagy)
-        const addCarTile = createTile({
-            title: 'Parkold le az autódat',
-            subtitle: 'Koppints ide az első autód felvételéhez',
-            icon: '🚗',
-            size: 'full',
-            variant: 'accent',
-            onClick: () => {
-                // Gyors autó hozzáadás demo
-                const plate = prompt('Írd be a rendszámot (pl. ABC-123):');
-                if (plate) {
-                    addCar({ plate, type: 'Ismeretlen', addedAt: new Date() });
-                    // Újrarenderelés (egyszerű mód: teljes nézet frissítés)
-                    // A store event listener jobb lenne, de most egyszerűsítünk:
-                    document.dispatchEvent(new CustomEvent('store-updated'));
-                }
-            }
-        });
-        // Kiemelés színnel
-        addCarTile.style.border = '1px solid var(--color-accent)';
-        addCarTile.style.boxShadow = '0 0 15px rgba(96, 205, 255, 0.2)';
-
-        grid.appendChild(addCarTile);
+        // Countdown logika indítása
+        startCountdown(nextBooking);
     } else {
-        // AUTÓK LISTÁZÁSA
-        state.cars.forEach(car => {
-            const carTile = createTile({
-                title: car.plate,
-                subtitle: car.type || 'Személyautó',
-                icon: '🚘',
-                size: 'full', // Később lehet large, ha több van
-                onClick: () => {
-                    navigate('/booking');
-                }
-            });
-            grid.appendChild(carTile);
-        });
-
-        // "Új autó hozzáadása" kicsi csempe
-        const plusTile = createTile({
-            title: 'Új autó',
-            icon: '➕',
-            size: 'medium',
-            onClick: () => {
-                const plate = prompt('Új rendszám:');
-                if (plate) addCar({ plate, type: 'Egyéb' });
-            }
-        });
-        grid.appendChild(plusTile);
+        // Nincs foglalás - Üdvözlő nézet
+        heroSection.innerHTML = `
+            <h1 style="font-size: 2rem; margin-bottom: 8px;">Szia Feco! 👋</h1>
+            <p style="opacity: 0.8; margin-bottom: 20px;">Nincs aktív foglalásod mostanában.</p>
+            <button id="hero-book-btn" style="
+                background: white; 
+                color: var(--color-accent); 
+                border: none; 
+                padding: 12px 24px; 
+                border-radius: 30px; 
+                font-weight: 700; 
+                font-size: 1rem;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                cursor: pointer;
+            ">Új időpont 📅</button>
+        `;
+        heroSection.style.background = 'linear-gradient(135deg, #60cdff, #2a5298)';
+        heroSection.style.padding = '32px 24px';
+        heroSection.style.borderRadius = '16px';
+        heroSection.style.color = 'white';
+        heroSection.style.textAlign = 'center';
     }
+    container.appendChild(heroSection);
 
-    // Statikus Menü Csempék
-    const adminTile = createTile({
-        title: 'Admin',
-        subtitle: 'Munkalista',
-        icon: '⚙️',
-        size: 'medium',
-        onClick: () => navigate('/admin')
+    // Eseménykezelő a gombra (ha létezik)
+    setTimeout(() => {
+        const btn = heroSection.querySelector('#hero-book-btn');
+        if (btn) btn.onclick = () => navigate('/booking');
+    }, 0);
+
+
+    // 2. QUICK ACTIONS (Gyorsgombok)
+    const actionsContainer = document.createElement('div');
+    actionsContainer.style.cssText = `
+        display: flex;
+        gap: 12px;
+        margin-bottom: 32px;
+        overflow-x: auto;
+        padding-bottom: 8px; /* Scrollbar hely */
+    `;
+
+    const actions = [
+        { label: 'Foglalás', icon: '📅', path: '/booking', color: 'rgba(96, 205, 255, 0.15)' },
+        { label: 'Profil', icon: '👤', path: '/profile', color: 'rgba(255, 255, 255, 0.05)' },
+        { label: 'Admin', icon: '⚙️', path: '/admin', color: 'rgba(255, 255, 255, 0.05)' },
+    ];
+
+    actions.forEach(act => {
+        const btn = document.createElement('button');
+        btn.innerHTML = `<span style="font-size: 1.2rem; margin-right: 8px;">${act.icon}</span> ${act.label}`;
+        btn.style.cssText = `
+            background: ${act.color};
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        `;
+        btn.onclick = act.path ? () => navigate(act.path) : act.onClick;
+        actionsContainer.appendChild(btn);
     });
-    grid.appendChild(adminTile);
+    container.appendChild(actionsContainer);
 
-    const historyTile = createTile({
-        title: 'Előzmények',
-        subtitle: 'Korábbi tisztítások',
-        icon: '📅',
-        size: 'medium',
-        onClick: () => alert('Előzmények listája itt lesz')
-    });
-    grid.appendChild(historyTile);
 
-    const profileTile = createTile({
-        title: 'Profil',
-        icon: '👤',
-        size: 'medium',
-        onClick: () => alert('Profil beállítások')
-    });
-    grid.appendChild(profileTile);
+    // 3. NEWS FEED (Hírek)
+    const newsHeader = document.createElement('h2');
+    newsHeader.textContent = 'Hírek & Infók';
+    newsHeader.style.cssText = 'font-size: 1.2rem; margin-bottom: 16px; padding-left: 4px; border-left: 4px solid var(--color-accent); padding-bottom: 0; line-height: 1;';
+    container.appendChild(newsHeader);
 
-    // Re-render listener (hogy frissüljön ha adat változik)
-    const updateHandler = () => {
-        // Nagyon basic: újra hívjuk a routert ami újraépíti a DOM-ot
-        // Élesben ezt VirtualDOM vagy okosabb update kezeli
-        window.dispatchEvent(new Event('hashchange'));
-    };
+    const newsContainer = document.createElement('div');
+    newsContainer.className = 'news-feed';
 
-    // Takarítás: elvileg le kellene szedni, ha elhagyjuk a nézetet, 
-    // de most MVP-ben globális eseményként kezeljük a routerben vagy itt hagyjuk.
-    // A router replace logic miatt ez többszörös listenerhez vezethet, de MVP-re ok.
-    document.addEventListener('store-updated', updateHandler, { once: true });
+    if (!state.news || state.news.length === 0) {
+        newsContainer.innerHTML = `
+            <div style="
+                text-align: center; 
+                padding: 30px; 
+                color: var(--color-text-muted); 
+                background: rgba(255,255,255,0.02); 
+                border-radius: 12px; 
+                border: 1px dashed rgba(255,255,255,0.1);"
+            >
+                Nincsenek friss hírek.
+            </div>
+        `;
+    } else {
+        state.news.forEach(item => {
+            newsContainer.appendChild(createNewsCard(item));
+        });
+    }
+    container.appendChild(newsContainer);
 
     return container;
 }
 
-// Segédfüggvény: következő foglalás keresése
+// Segédfüggvények
 function getNextBooking() {
     if (!state.bookings || state.bookings.length === 0) return null;
-
     const now = new Date();
     const upcoming = state.bookings
         .filter(b => b.status !== 'completed')
-        .map(b => ({
-            ...b,
-            datetime: new Date(`${b.date}T${b.time}:00`)
-        }))
+        .map(b => ({ ...b, datetime: new Date(`${b.date}T${b.time}:00`) }))
         .filter(b => b.datetime > now)
         .sort((a, b) => a.datetime - b.datetime);
-
     return upcoming[0] || null;
+}
+
+function startCountdown(booking) {
+    import('../utils/calendar.js').then(({ calculateCountdown }) => {
+        const update = () => {
+            const el = document.getElementById('hero-countdown');
+            if (!el) return;
+            const res = calculateCountdown(booking.date, booking.time);
+            el.textContent = res.expired ? 'Most!' : res.text;
+        };
+        update();
+        setInterval(update, 1000);
+    });
 }
