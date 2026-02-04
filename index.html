@@ -74,7 +74,7 @@
             </div>
 
             <!-- Appointment Tile (Medium) -->
-            <div class="tile tile-medium tile-accent" onclick="openBookingModal()">
+            <div class="tile tile-medium tile-accent" onclick="openGarageModal()">
                 <div class="tile-bg-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
                         stroke-linejoin="round">
@@ -86,7 +86,7 @@
                 </div>
                 <div class="tile-content">
                     <h3>Időpont</h3>
-                    <p class="tile-desc">Foglalj most</p>
+                    <p class="tile-desc">Foglalás a Garázsból</p>
                 </div>
             </div>
 
@@ -347,92 +347,61 @@
     <div id="gift-modal" class="modal">
         <div class="modal-content glass-panel" style="max-width: 450px;">
             <div class="modal-header">
-                <h2>Leppj meg valakit! 🎁</h2>
+                <h2>Ajándék HFZ kód 🎁</h2>
                 <button class="close-btn" onclick="closeModal('gift-modal')">×</button>
             </div>
             <div class="modal-body">
                 <p style="opacity: 0.8; margin-bottom: 20px; font-size: 0.9rem;">
-                    Lepd meg barátodat vagy családtagodat egy profi belső takarítással! 🤫
+                    Egy ajándékkód 1 db HFZ alkalomra jogosít. Nem előfizetés, nem VIP, nem időpont.
                 </p>
 
-                <!-- My Active Gifts Section - Prominent (Top) -->
-                <div id="my-active-gifts"
-                    style="margin-bottom: 25px; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 20px; display: none;">
-                    <h3 style="font-size: 1.1rem; margin-bottom: 15px; color: #ff0055;">Aktív Meglepetéseid 🕵️‍♂️</h3>
-                    <div id="active-gifts-list">
-                        <!-- Gift cards with countdowns injected by JS -->
-                    </div>
-                </div>
-
-                <!-- Process Info Section - NEW -->
                 <div
-                    style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px dashed rgba(255,255,255,0.2);">
-                    <h4 style="margin: 0 0 10px 0; font-size: 0.9rem; color: #4cc9f0;">Hogyan működik a meglepetés?</h4>
-                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; opacity: 0.9;">
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <span
-                                style="background: #4cc9f0; color: black; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">1</span>
-                            <span>Töltsd ki az űrlapot az ajándékozott adataival.</span>
+                    style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px dashed rgba(255,255,255,0.2);">
+                    <h4 style="margin: 0 0 10px 0; font-size: 0.9rem; color: #4cc9f0;">Hogyan működik?</h4>
+                    <ol style="margin:0; padding-left:18px; font-size:0.8rem; opacity:0.9; display:grid; gap:6px;">
+                        <li>Vásárolsz egy ajándékkódot.</li>
+                        <li>A kódot regisztrált felhasználó válthatja be.</li>
+                        <li>A beváltás után 1 HFZ jogosultság keletkezik.</li>
+                    </ol>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 1rem; color:#ff0055;">Ajándékkód vásárlás</h3>
+                    <form id="gift-purchase-form">
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-size: 0.8rem; opacity: 0.7;">Kinek
+                                szánod? (opcionális)</label>
+                            <input type="text" id="gift-purchase-recipient" placeholder="Név vagy becenév">
                         </div>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <span
-                                style="background: #4cc9f0; color: black; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">2</span>
-                            <span>Az adminunk elfogadja és egyezteti a pontos helyszínt.</span>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-size: 0.8rem; opacity: 0.7;">Fix ár
+                                (HFZ ajándék)</label>
+                            <input type="text" id="gift-fixed-price" value="9.900 Ft" disabled
+                                style="opacity:0.6; cursor:not-allowed;">
                         </div>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <span
-                                style="background: #4cc9f0; color: black; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">3</span>
-                            <span>Kész! Kövesd élőben itt a visszaszámlálót! 🤫✨</span>
-                        </div>
+                        <button type="submit" class="btn-success full-width"
+                            style="background: linear-gradient(135deg, #ff0055, #bc00ff); border: none;">
+                            Ajándékkód generálása 🎁
+                        </button>
+                    </form>
+                    <div id="gift-generated-code"
+                        style="display:none; margin-top: 15px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                        <div style="font-size:0.8rem; opacity:0.7; margin-bottom:6px;">Ajándékkód</div>
+                        <div id="gift-generated-code-value"
+                            style="font-size:1.1rem; font-weight:bold; letter-spacing:2px;"></div>
                     </div>
                 </div>
 
-                <form id="gift-form">
-                    <div class="form-group" style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; font-size: 0.8rem; opacity: 0.7;">Kit
-                            szeretnél meglepni?</label>
-                        <input type="text" id="gift-recipient" placeholder="Név vagy Becenév" required>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; font-size: 0.8rem; opacity: 0.7;">Milyen autót
-                            keressünk?</label>
-                        <input type="text" id="gift-car" placeholder="Pl. Ezüst Audi A4 (ABC-123)" required>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; font-size: 0.8rem; opacity: 0.7;">Hol találjuk
-                            az autót?</label>
-                        <input type="text" id="gift-address" placeholder="Cím, házszám, parkolóhely leírás" required>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                        <div class="form-group">
-                            <label
-                                style="display: block; margin-bottom: 5px; font-size: 0.8rem; opacity: 0.7;">Dátum</label>
-                            <input type="date" id="gift-date" required>
+                <div>
+                    <h3 style="margin: 0 0 10px 0; font-size: 1rem; color:#4cc9f0;">Ajándékkód beváltás</h3>
+                    <form id="gift-redeem-form">
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="display:block; margin-bottom:5px; font-size:0.8rem; opacity:0.7;">Ajándékkód</label>
+                            <input type="text" id="gift-redeem-code" placeholder="HFZ-XXXXXX" required>
                         </div>
-                        <div class="form-group">
-                            <label
-                                style="display: block; margin-bottom: 5px; font-size: 0.8rem; opacity: 0.7;">Időpont</label>
-                            <input type="time" id="gift-time" required>
-                        </div>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label style="display: block; margin-bottom: 5px; font-size: 0.8rem; opacity: 0.7;">Titkos
-                            üzenet neki (opcionális)</label>
-                        <textarea id="gift-message" placeholder="Pl. Boldog szülinapot! Szeretlek :)"
-                            style="width: 100%; height: 60px; background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); border-radius: 8px; color: white; padding: 10px;"></textarea>
-                    </div>
-
-                    <button type="submit" class="btn-success full-width"
-                        style="background: linear-gradient(135deg, #ff0055, #bc00ff); border: none;">
-                        Meglepetés küldése! 🚀
-                    </button>
-                </form>
-
-                <!-- My Active Gifts Section - Prominent (Top) is kept, removing duplicate at bottom -->
+                        <button type="submit" class="btn-primary full-width">Kód beváltása</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -521,17 +490,16 @@
                                 <option value="reward" id="opt-reward" disabled>5 Pont beváltása (Ingyenes)</option>
                                 <option value="subscription" id="opt-sub" disabled>Heti ingyenes mosás (Előfizető)
                                 </option>
+                                <option value="gift" id="opt-gift" disabled>Ajándék HFZ (Kód)</option>
                             </select>
                         </div>
 
-                        <!-- Car Selection -->
+                        <!-- Car Selection (Garage-driven) -->
                         <div class="conf-item"
                             style="flex-direction: column; align-items: flex-start; gap: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-top: 15px; padding-bottom: 15px;">
-                            <span class="conf-label">Válassz autót:</span>
-                            <select id="booking-car-select">
-                                <option value="" disabled selected>-- Válassz a garázsból --</option>
-                                <!-- Cars injected via JS -->
-                            </select>
+                            <span class="conf-label">Kiválasztott autó:</span>
+                            <div id="booking-car-display" style="font-weight:bold; color:#4cc9f0;">-</div>
+                            <input type="hidden" id="booking-car-id" value="">
                         </div>
 
                         <!-- Address Selection (NEW) -->
@@ -764,6 +732,8 @@
                         <p style="color:#00ff00; font-weight:bold; margin:0;">AKTÍV ELŐFIZETÉS</p>
                         <p id="sub-next-wash" style="font-size:0.85rem; margin:5px 0 0 0; opacity:0.8;"></p>
                     </div>
+                    <div id="gift-entitlement-count"
+                        style="text-align:center; font-size:0.85rem; opacity:0.8; margin-bottom:15px;"></div>
 
                     <div id="sub-offer-details"
                         style="background:rgba(255,255,255,0.05); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.1); margin-bottom:20px;">
@@ -807,6 +777,28 @@
                         <button onclick="transferShinePoints()" class="btn-primary full-width"
                             style="background:rgba(255, 215, 0, 0.2); border-color:#ffd700; color:#ffd700;">Pontok
                             Küldése ✉️</button>
+                    </div>
+                </div>
+
+                <!-- Entitlement Transfer Section -->
+                <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 25px; padding-top: 25px;">
+                    <div
+                        style="background:rgba(255,255,255,0.05); padding:15px; border-radius:12px; border: 1px solid rgba(76, 201, 240, 0.2);">
+                        <h4 style="margin-top:0; font-size:1rem; color:#4cc9f0; text-align:center;">Előfizetés
+                            jogosultság átadás 👑</h4>
+                        <p style="font-size:0.8rem; opacity:0.7; margin-bottom:12px; text-align:center;">Csak regisztrált
+                            felhasználónak adható át.</p>
+                        <div class="form-group" style="margin-bottom:10px;">
+                            <input type="text" id="entitlement-transfer-target" placeholder="Célfelhasználó neve"
+                                class="glass-input">
+                        </div>
+                        <div class="form-group" style="margin-bottom:15px;">
+                            <input type="number" id="entitlement-transfer-amount" placeholder="Hány jogosultságot adsz át?"
+                                class="glass-input" min="1">
+                        </div>
+                        <button onclick="transferSubscriptionEntitlements()" class="btn-primary full-width"
+                            style="background:rgba(76, 201, 240, 0.2); border-color:#4cc9f0; color:#4cc9f0;">Jogosultság
+                            Átadása</button>
                     </div>
                 </div>
             </div>

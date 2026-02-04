@@ -9,6 +9,9 @@ let allCarsData = [];
 let appServices = []; // New
 let appAnnouncements = []; // List System v4
 let appVipRequests = []; // NEW
+let appCancelLogs = [];
+let appSubscriptionLogs = [];
+let appPromotions = [];
 
 // Function to refresh data from LocalStorage
 function loadData() {
@@ -35,6 +38,10 @@ function loadData() {
     }
     appAnnouncements = Core.getData('app_announcements_v4');
     appVipRequests = Core.getData('vip_requests');
+    appCancelLogs = Core.getData('admin_cancel_logs');
+    appSubscriptionLogs = Core.getData('subscription_entitlement_logs');
+    appPromotions = Core.getData('app_promotions');
+    if (!Array.isArray(appPromotions)) appPromotions = [];
 
     // Load services or init default if empty
     appServices = Core.getData('app_services');
@@ -64,6 +71,8 @@ function loadData() {
     if (bookingsModified) {
         Core.saveData('app_bookings', appBookings);
     }
+
+    normalizePromotions();
 
     // SEED DATA: If no bookings, create some
     // ... (marad a seed logika)
@@ -101,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateAnnouncementTile();
         renderAnnouncements();
         setupAnnouncementLogic();
+        setupPromotionForm();
 
         // Auto-refresh periodically (e.g. every 15 seconds) to keep it live
         setInterval(() => {
@@ -220,6 +230,18 @@ function updateDashboard() {
     const pendingVips = appVipRequests.filter(r => r.status === 'pending').length;
     const pendingVipEl = document.getElementById('pending-vip-count');
     if (pendingVipEl) pendingVipEl.textContent = `${pendingVips} folyamatban`;
+
+    const subscriptionCountEl = document.getElementById('subscriptions-count');
+    if (subscriptionCountEl) {
+        const activeSubs = appUsers.filter(u => u.subscription && u.subscription.active).length;
+        subscriptionCountEl.textContent = `${activeSubs} aktív`;
+    }
+
+    const promotionsCountEl = document.getElementById('promotions-count');
+    if (promotionsCountEl) {
+        const activePromotions = appPromotions.filter(p => p.status === 'active').length;
+        promotionsCountEl.textContent = `${activePromotions} aktív`;
+    }
 
     const carCountEl = document.getElementById('total-cars-count');
     if (carCountEl) carCountEl.textContent = `${allCarsData.length} autó`;
@@ -593,6 +615,313 @@ if (addServiceForm) {
             submitBtn.classList.remove('pulse-animation');
         }
     });
+}
+
+// --- Promotions Logic ---
+
+let editingPromotionId = null;
+
+function normalizePromotions() {
+    let changed = false;
+    const now = Date.now();
+
+    appPromotions.forEach((promo, index) => {
+        if (!promo.id) {
+            promo.id = `promo_${Date.now()}_${index}`;
+            changed = true;
+        }
+        if (!promo.status) {
+            promo.status = 'inactive';
+            changed = true;
+        }
+        if (!promo.type) {
+            promo.type = 'percent';
+            changed = true;
+        }
+        if (promo.value === undefined || promo.value === null) {
+            promo.value = 0;
+            changed = true;
+        }
+        if (!promo.vipScope) {
+            promo.vipScope = 'all';
+            changed = true;
+        }
+        if (!promo.createdAt) {
+            promo.createdAt = new Date().toISOString();
+            changed = true;
+        }
+        if (!promo.updatedAt) {
+            promo.updatedAt = promo.createdAt;
+            changed = true;
+        }
+
+        const endsAt = promo.endsAt ? new Date(promo.endsAt).getTime() : null;
+        if (endsAt && endsAt <= now && promo.status !== 'inactive') {
+            promo.status = 'inactive';
+            promo.expiredAt = new Date().toISOString();
+            promo.statusReason = 'Lejárt';
+            promo.updatedAt = new Date().toISOString();
+            changed = true;
+        }
+    });
+
+    const activePromos = appPromotions.filter(p => p.status === 'active');
+    if (activePromos.length > 1) {
+        const sorted = activePromos.slice().sort((a, b) => {
+            const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+            const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+            return bTime - aTime;
+        });
+        const keep = sorted[0];
+        sorted.slice(1).forEach(promo => {
+            if (promo.id !== keep.id) {
+                promo.status = 'inactive';
+                promo.statusReason = 'Másik akció aktív';
+                promo.deactivatedAt = new Date().toISOString();
+                promo.updatedAt = new Date().toISOString();
+                changed = true;
+            }
+        });
+    }
+
+    if (changed) {
+        Core.saveData('app_promotions', appPromotions);
+    }
+}
+
+function toDatetimeLocalValue(isoString) {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return '';
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+}
+
+function getPromotionValueLabel(promo) {
+    if (promo.type === 'fixed') {
+        return `${promo.value} Ft`;
+    }
+    return `${promo.value}%`;
+}
+
+function getVipScopeLabel(scope) {
+    switch (scope) {
+        case 'basic':
+            return 'Alap';
+        case 'gold':
+            return 'Gold';
+        case 'platinum':
+            return 'Platina';
+        case 'all':
+        default:
+            return 'Mind';
+    }
+}
+
+function renderPromotions() {
+    normalizePromotions();
+
+    const tbody = document.querySelector('#promotions-table tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (!appPromotions.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align:center; opacity:0.6;">Nincs rögzített akció.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    const sorted = appPromotions.slice().sort((a, b) => {
+        const aTime = new Date(a.createdAt || 0).getTime();
+        const bTime = new Date(b.createdAt || 0).getTime();
+        return bTime - aTime;
+    });
+
+    sorted.forEach(promo => {
+        const startsAtLabel = promo.startsAt ? Core.formatDate(promo.startsAt) : '-';
+        const endsAtLabel = promo.endsAt ? Core.formatDate(promo.endsAt) : '-';
+        const statusBadge = promo.status === 'active'
+            ? '<span class="promo-badge active">Aktív</span>'
+            : '<span class="promo-badge inactive">Inaktív</span>';
+
+        const statusHint = promo.statusReason ? `<div style="font-size:0.7rem; opacity:0.6;">${promo.statusReason}</div>` : '';
+
+        const disableActivate = promo.status === 'active';
+        const disableDeactivate = promo.status !== 'active';
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <strong>${promo.name}</strong>
+                <div style="font-size:0.75rem; opacity:0.6;">${promo.id}</div>
+            </td>
+            <td>${promo.type === 'fixed' ? 'Fix összeg' : 'Százalékos'}</td>
+            <td>${getPromotionValueLabel(promo)}</td>
+            <td>
+                <div>${startsAtLabel}</div>
+                <div style="opacity:0.6;">→ ${endsAtLabel}</div>
+            </td>
+            <td>${getVipScopeLabel(promo.vipScope)}</td>
+            <td>${statusBadge}${statusHint}</td>
+            <td style="text-align:right;">
+                <button class="promo-action-btn primary" ${disableActivate ? 'disabled' : ''} onclick="activatePromotion('${promo.id}')">Aktiválás</button>
+                <button class="promo-action-btn danger" ${disableDeactivate ? 'disabled' : ''} onclick="deactivatePromotion('${promo.id}')">Deaktiválás</button>
+                <button class="promo-action-btn" onclick="editPromotion('${promo.id}')">Szerkesztés</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function editPromotion(id) {
+    const promo = appPromotions.find(p => p.id === id);
+    if (!promo) return;
+
+    editingPromotionId = id;
+    document.getElementById('promotion-id').value = promo.id;
+    document.getElementById('promotion-name').value = promo.name;
+    document.getElementById('promotion-type').value = promo.type || 'percent';
+    document.getElementById('promotion-value').value = promo.value ?? 0;
+    document.getElementById('promotion-start').value = toDatetimeLocalValue(promo.startsAt);
+    document.getElementById('promotion-end').value = toDatetimeLocalValue(promo.endsAt);
+    document.getElementById('promotion-vip').value = promo.vipScope || 'all';
+
+    const submitBtn = document.getElementById('promotion-submit-btn');
+    if (submitBtn) submitBtn.textContent = 'Mentés (módosítás)';
+
+    const modalBody = document.querySelector('#promotions-modal .modal-body');
+    if (modalBody) modalBody.scrollTop = 0;
+}
+
+function resetPromotionForm() {
+    editingPromotionId = null;
+    const form = document.getElementById('promotion-form');
+    if (form) form.reset();
+    const submitBtn = document.getElementById('promotion-submit-btn');
+    if (submitBtn) submitBtn.textContent = 'Mentés';
+    const idField = document.getElementById('promotion-id');
+    if (idField) idField.value = '';
+}
+
+function activatePromotion(id) {
+    const promo = appPromotions.find(p => p.id === id);
+    if (!promo) return;
+
+    const endsAt = promo.endsAt ? new Date(promo.endsAt).getTime() : null;
+    if (endsAt && endsAt <= Date.now()) {
+        alert('Ez az akció már lejárt, nem aktiválható.');
+        promo.status = 'inactive';
+        promo.statusReason = 'Lejárt';
+        promo.updatedAt = new Date().toISOString();
+        Core.saveData('app_promotions', appPromotions);
+        renderPromotions();
+        updateDashboard();
+        return;
+    }
+
+    appPromotions.forEach(p => {
+        if (p.id === id) {
+            p.status = 'active';
+            p.statusReason = '';
+            p.updatedAt = new Date().toISOString();
+        } else if (p.status === 'active') {
+            p.status = 'inactive';
+            p.statusReason = 'Másik akció aktív';
+            p.deactivatedAt = new Date().toISOString();
+            p.updatedAt = new Date().toISOString();
+        }
+    });
+
+    Core.saveData('app_promotions', appPromotions);
+    renderPromotions();
+    updateDashboard();
+}
+
+function deactivatePromotion(id) {
+    const promo = appPromotions.find(p => p.id === id);
+    if (!promo) return;
+
+    promo.status = 'inactive';
+    promo.statusReason = 'Admin deaktiválta';
+    promo.deactivatedAt = new Date().toISOString();
+    promo.updatedAt = new Date().toISOString();
+
+    Core.saveData('app_promotions', appPromotions);
+    renderPromotions();
+    updateDashboard();
+}
+
+function setupPromotionForm() {
+    const promotionForm = document.getElementById('promotion-form');
+    const promotionResetBtn = document.getElementById('promotion-reset-btn');
+
+    if (promotionForm) {
+        promotionForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('promotion-name').value.trim();
+            const type = document.getElementById('promotion-type').value;
+            const value = Number(document.getElementById('promotion-value').value);
+            const startsAtInput = document.getElementById('promotion-start').value;
+            const endsAtInput = document.getElementById('promotion-end').value;
+            const vipScope = document.getElementById('promotion-vip').value;
+
+            if (!name || Number.isNaN(value)) return;
+
+            const startsAt = new Date(startsAtInput);
+            const endsAt = new Date(endsAtInput);
+
+            if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+                alert('Érvénytelen dátum/idő.');
+                return;
+            }
+
+            if (endsAt.getTime() <= startsAt.getTime()) {
+                alert('A záró időpontnak később kell lennie, mint a kezdő.');
+                return;
+            }
+
+            if (editingPromotionId) {
+                const promo = appPromotions.find(p => p.id === editingPromotionId);
+                if (promo) {
+                    promo.name = name;
+                    promo.type = type;
+                    promo.value = value;
+                    promo.startsAt = startsAt.toISOString();
+                    promo.endsAt = endsAt.toISOString();
+                    promo.vipScope = vipScope;
+                    promo.updatedAt = new Date().toISOString();
+                }
+            } else {
+                appPromotions.push({
+                    id: `promo_${Date.now()}`,
+                    name,
+                    type,
+                    value,
+                    startsAt: startsAt.toISOString(),
+                    endsAt: endsAt.toISOString(),
+                    vipScope,
+                    status: 'inactive',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                });
+            }
+
+            Core.saveData('app_promotions', appPromotions);
+            normalizePromotions();
+            renderPromotions();
+            updateDashboard();
+            resetPromotionForm();
+        });
+    }
+
+    if (promotionResetBtn) {
+        promotionResetBtn.addEventListener('click', () => {
+            resetPromotionForm();
+        });
+    }
 }
 
 // --- Announcement Logic (List System v4) ---
@@ -994,6 +1323,149 @@ window.saveCarEdit = function () {
 
 // --- Schedule Management (v5 Refactor) ---
 let currentScheduleTab = 'active';
+const HFZ_BLOCK_MINUTES = 20;
+
+function adminTimeToMinutes(timeStr) {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+}
+
+function getOpeningHoursForAdmin() {
+    return {
+        start: parseInt(localStorage.getItem('settings_openingStart')) || 8,
+        end: parseInt(localStorage.getItem('settings_openingEnd')) || 17
+    };
+}
+
+function renderDailyTimeline() {
+    const grid = document.getElementById('daily-timeline-grid');
+    if (!grid) return;
+
+    const warningEl = document.getElementById('daily-timeline-warning');
+    if (warningEl) warningEl.textContent = '';
+
+    const dateEl = document.getElementById('daily-timeline-date');
+    const hoursEl = document.getElementById('daily-timeline-hours');
+
+    const today = new Date();
+    const todayStr = Core.getISODate(today);
+    if (dateEl) {
+        dateEl.textContent = today.toLocaleDateString('hu-HU', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'long'
+        });
+    }
+
+    const { start, end } = getOpeningHoursForAdmin();
+    const openingStartMin = start * 60;
+    const openingEndMin = end * 60;
+    if (hoursEl) hoursEl.textContent = `Működési idő: ${start}:00–${end}:00`;
+
+    grid.innerHTML = '';
+
+    const travelMin = parseInt(localStorage.getItem('settings_pufferMin')) || 15;
+    const todayBookings = appBookings
+        .filter(b => b.date === todayStr && b.status !== 'cancelled')
+        .sort((a, b) => a.time.localeCompare(b.time));
+
+    const blocks = [];
+    const conflicts = new Set();
+
+    todayBookings.forEach((booking, index) => {
+        const startMin = adminTimeToMinutes(booking.time);
+        const endMin = startMin + HFZ_BLOCK_MINUTES;
+        const label = `${booking.userName || 'Ismeretlen'} • HFZ`;
+
+        blocks.push({
+            type: 'hfz',
+            startMin,
+            endMin,
+            label
+        });
+
+        if (startMin < openingStartMin || endMin > openingEndMin) {
+            conflicts.add(
+                `${booking.time} időpont a nyitvatartáson kívülre esik (${start}:00–${end}:00).`
+            );
+        }
+
+        if (index < todayBookings.length - 1) {
+            const travelStart = endMin;
+            const travelEnd = travelStart + travelMin;
+            blocks.push({
+                type: 'travel',
+                startMin: travelStart,
+                endMin: travelEnd,
+                label: `Utazás (${travelMin} perc)`
+            });
+
+            const nextStart = adminTimeToMinutes(todayBookings[index + 1].time);
+            if (nextStart < travelEnd) {
+                conflicts.add(
+                    `${booking.time} és ${todayBookings[index + 1].time} között nincs elég utazási idő.`
+                );
+            }
+            if (nextStart < endMin) {
+                conflicts.add(
+                    `${booking.time} és ${todayBookings[index + 1].time} között átfedés van.`
+                );
+            }
+            if (travelEnd > openingEndMin) {
+                conflicts.add(
+                    `${booking.time} után az utazási idő túlnyúlik a záráson (${end}:00).`
+                );
+            }
+        }
+    });
+
+    if (warningEl) {
+        const conflictList = Array.from(conflicts);
+        warningEl.textContent = conflictList.length
+            ? `⚠️ Ütközés észlelve: ${conflictList.join(' ')}`
+            : 'Minden blokk ütközésmentes a mai napon.';
+    }
+
+    for (let hour = start; hour < end; hour++) {
+        const row = document.createElement('div');
+        row.className = 'timeline-hour-row';
+        row.setAttribute('role', 'listitem');
+
+        const label = document.createElement('div');
+        label.className = 'timeline-hour-label';
+        label.textContent = `${String(hour).padStart(2, '0')}:00`;
+
+        const track = document.createElement('div');
+        track.className = 'timeline-hour-track';
+
+        const hourStart = hour * 60;
+        const hourEnd = (hour + 1) * 60;
+
+        blocks.forEach(block => {
+            const segmentStart = Math.max(block.startMin, hourStart);
+            const segmentEnd = Math.min(block.endMin, hourEnd);
+            if (segmentStart >= segmentEnd) return;
+
+            const segment = document.createElement('div');
+            segment.className = `timeline-block ${block.type}`;
+            const leftPct = ((segmentStart - hourStart) / 60) * 100;
+            const widthPct = ((segmentEnd - segmentStart) / 60) * 100;
+            segment.style.left = `${leftPct}%`;
+            segment.style.width = `${widthPct}%`;
+
+            if (segmentStart === block.startMin) {
+                segment.textContent = block.label;
+            }
+
+            track.appendChild(segment);
+        });
+
+        row.appendChild(label);
+        row.appendChild(track);
+        grid.appendChild(row);
+    }
+}
 
 window.switchScheduleTab = function (tab) {
     currentScheduleTab = tab;
@@ -1012,6 +1484,9 @@ function renderSchedule() {
     const container = document.getElementById('active-jobs-view');
     if (!container) return;
     container.innerHTML = '';
+
+    renderDailyTimeline();
+    renderCancellationLogs();
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -1091,6 +1566,45 @@ function renderSchedule() {
         }
     }
     container.appendChild(fragment);
+}
+
+function renderCancellationLogs() {
+    const tableBody = document.querySelector('#cancel-log-table tbody');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+
+    if (!Array.isArray(appCancelLogs) || appCancelLogs.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align:center; opacity:0.6;">Nincs lemondási esemény.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    const sortedLogs = [...appCancelLogs].sort((a, b) => {
+        const aTime = a.cancelledAt ? new Date(a.cancelledAt).getTime() : 0;
+        const bTime = b.cancelledAt ? new Date(b.cancelledAt).getTime() : 0;
+        return bTime - aTime;
+    });
+
+    sortedLogs.forEach(log => {
+        const row = document.createElement('tr');
+        const cancelledAt = log.cancelledAt ? Core.formatDate(log.cancelledAt) : '-';
+        const bookingLabel = log.bookingDate && log.bookingTime ? `${log.bookingDate} ${log.bookingTime}` : '-';
+        const withinLabel = log.withinWindow ? 'Igen' : 'Nem';
+        const capacityLabel = log.capacityReleased ? 'Felszabadult' : 'Nem';
+        row.innerHTML = `
+            <td>${cancelledAt}</td>
+            <td>${log.userName || '-'}</td>
+            <td>${log.carPlate || '-'}</td>
+            <td>${bookingLabel}</td>
+            <td>${withinLabel}</td>
+            <td>${log.vipLevel || '-'}</td>
+            <td>${capacityLabel}</td>
+        `;
+        tableBody.appendChild(row);
+    });
 }
 
 function createScheduleItem(item) {
@@ -1199,106 +1713,96 @@ window.updateBookingStatus = function (bookingId, newStatus) {
 // --- Gifting Admin Management ---
 
 function renderGifts() {
-    const tbody = document.querySelector('#gifts-table tbody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
+    const codesBody = document.querySelector('#gift-codes-table tbody');
+    const redeemBody = document.querySelector('#gift-redeem-table tbody');
+    if (!codesBody || !redeemBody) return;
 
-    // AI Update: Only show UNPROCESSED gifts in this list
-    const gifts = appBookings.filter(b => b.isGift === true && !b.giftAccepted);
+    const codes = Core.getData('gift_codes');
+    const logs = Core.getData('gift_redemption_logs');
 
+    const activeCount = codes.filter(code => code.status === 'active').length;
     const countEl = document.getElementById('incoming-gifts-count');
-    if (countEl) countEl.innerText = `${gifts.length} feldolgozatlan`;
+    if (countEl) countEl.innerText = `${activeCount} aktív`;
 
-    if (gifts.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.6;">Nincs bejövő ajándék kérés.</td></tr>';
-        return;
-    }
-
-    const rows = gifts.map(gift => `
-            <tr>
-                <td>${gift.userName}</td>
-                <td><strong>${gift.recipientName}</strong></td>
-                <td>${gift.date} ${gift.time}</td>
-                <td style="font-size: 0.85rem;">
-                    <div>🚗 ${gift.carDetails}</div>
-                    <div style="opacity:0.7;">📍 ${gift.addressString}</div>
-                    ${gift.message ? `<div style="font-style:italic; color:#4cc9f0; margin-top:4px;">💬 "${gift.message}"</div>` : ''}
-                </td>
+    if (codes.length === 0) {
+        codesBody.innerHTML = '<tr><td colspan="6" style="text-align:center; opacity:0.6;">Nincs ajándékkód.</td></tr>';
+    } else {
+        codesBody.innerHTML = '';
+        codes.forEach(code => {
+            const createdAt = code.createdAt ? Core.formatDate(code.createdAt) : '-';
+            const row = document.createElement('tr');
+            const statusLabel = code.status === 'redeemed' ? 'Beváltott' : (code.status === 'disabled' ? 'Inaktív' : 'Aktív');
+            row.innerHTML = `
+                <td><strong>${code.code}</strong></td>
+                <td>${statusLabel}</td>
+                <td>${code.createdByName || '-'}</td>
+                <td>${code.redeemedByName || '-'}</td>
+                <td>${createdAt}</td>
                 <td>
-                    <div style="display:flex; gap:5px;">
-                        <button class="btn-success" onclick="openGiftProcess('${gift.id}')" style="padding: 5px 10px; font-size: 0.8rem;">Elfogadás</button>
-                        <button class="btn-danger" onclick="deleteGift('${gift.id}')" style="padding: 5px 10px; font-size: 0.8rem; background:#ff4d4d; border:none; color:white; border-radius:4px; cursor:pointer;">Törlés</button>
-                    </div>
+                    ${code.status === 'active'
+                    ? `<button class="btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="deactivateGiftCode('${code.code}')">Inaktiválás</button>`
+                    : '-'}
                 </td>
-            </tr>
-    `);
-    tbody.innerHTML = rows.join('');
-}
-
-function deleteGift(id) {
-    if (confirm("Biztosan törölni szeretnéd ezt az ajándék kérést?")) {
-        appBookings = appBookings.filter(b => b.id !== id);
-        localStorage.setItem('app_bookings', JSON.stringify(appBookings));
-        alert("Ajándék kérése törölve.");
-        renderGifts();
-        updateDashboard();
-    }
-}
-
-window.openGiftProcess = function (id) {
-    const gift = appBookings.find(b => b.id === id);
-    if (!gift) return;
-
-    document.getElementById('process-gift-id').value = id;
-    document.getElementById('gift-process-info').innerText = `${gift.userName} meglepetése: ${gift.recipientName} részére.`;
-    document.getElementById('process-brand-model').value = gift.carDetails;
-
-    openModal('gift-process-modal');
-}
-
-// Setup Gift Process Form
-document.addEventListener('DOMContentLoaded', () => {
-    const processForm = document.getElementById('gift-process-form');
-    if (processForm) {
-        processForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const id = document.getElementById('process-gift-id').value;
-            const plate = document.getElementById('process-plate').value;
-            const brandModel = document.getElementById('process-brand-model').value;
-
-            confirmGiftActivation(id, plate, brandModel);
+            `;
+            codesBody.appendChild(row);
         });
     }
-});
 
-function confirmGiftActivation(id, plate, brandModel) {
-    const booking = appBookings.find(b => b.id === id);
-    if (booking) {
-        // AI Update: Keep isGift flag but set giftAccepted
-        booking.giftAccepted = true;
-        booking.carPlate = plate;
-        booking.carDetails = brandModel; // Update with confirmed details
-
-        // Add coordinates/address object if needed for the map/tracker (mocking simple string to object conversion if needed, but the current UI uses .address object for regular bookings)
-        // Since gifts use addressString, let's keep it simple or convert it.
-        if (!booking.address) {
-            booking.address = {
-                city: 'Gift Location',
-                street: booking.addressString,
-                houseNum: ''
-            };
-        }
-
-        localStorage.setItem('app_bookings', JSON.stringify(appBookings));
-
-        alert("Ajándék sikeresen aktiválva a naptárba! 🚀");
-        closeModal('gift-process-modal');
-        closeModal('gifts-modal');
-
-        updateDashboard();
-        renderSchedule();
-        renderGifts();
+    if (logs.length === 0) {
+        redeemBody.innerHTML = '<tr><td colspan="6" style="text-align:center; opacity:0.6;">Nincs beváltás napló.</td></tr>';
+    } else {
+        redeemBody.innerHTML = '';
+        const sortedLogs = [...logs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        sortedLogs.forEach(log => {
+            const row = document.createElement('tr');
+            const createdAt = log.createdAt ? Core.formatDate(log.createdAt) : '-';
+            row.innerHTML = `
+                <td>${createdAt}</td>
+                <td>${log.type || '-'}</td>
+                <td>${log.code || '-'}</td>
+                <td>${log.userName || '-'}</td>
+                <td>${log.amount ?? '-'}</td>
+                <td>${log.note || '-'}</td>
+            `;
+            redeemBody.appendChild(row);
+        });
     }
+}
+
+window.deactivateGiftCode = function (code) {
+    const reason = prompt("Inaktiválás indoka (kötelező):");
+    if (!reason) {
+        alert("Indok nélkül nem inaktiválható.");
+        return;
+    }
+    const codes = Core.getData('gift_codes');
+    const target = codes.find(item => item.code === code);
+    if (!target) {
+        alert("A kód nem található.");
+        return;
+    }
+    if (target.status !== 'active') {
+        alert("Csak aktív kód inaktiválható.");
+        return;
+    }
+    target.status = 'disabled';
+    target.deactivatedAt = new Date().toISOString();
+    target.deactivatedReason = reason;
+    Core.saveData('gift_codes', codes);
+
+    const logs = Core.getData('gift_redemption_logs');
+    logs.push({
+        id: `giftlog_${Date.now()}`,
+        type: 'Inaktiválás',
+        code,
+        userId: null,
+        userName: 'Admin',
+        amount: 0,
+        note: reason,
+        createdAt: new Date().toISOString()
+    });
+    Core.saveData('gift_redemption_logs', logs);
+    renderGifts();
 }
 
 window.editBookingNote = function (bookingId) {
@@ -1348,6 +1852,11 @@ function loadSettings() {
 
     const savedPuffer = localStorage.getItem('settings_pufferMin') || 15;
     const savedLead = localStorage.getItem('settings_leadTimeMin') || 60;
+    const savedGoldAdvance = localStorage.getItem('settings_vipGoldAdvanceDays') || 0;
+    const savedPrioritySlots = localStorage.getItem('settings_vipPrioritySlots') || '';
+    const savedHomeSlots = localStorage.getItem('settings_vipHomeSlots') || '';
+    const savedMaxEntitlements = localStorage.getItem('settings_subscriptionMaxEntitlements') || 4;
+    const savedLateCancelReturn = localStorage.getItem('settings_subscriptionLateCancelReturn') === 'true';
 
     // Opening Hours Defaults
     const savedStart = localStorage.getItem('settings_openingStart') || 8;
@@ -1363,6 +1872,21 @@ function loadSettings() {
         leadSlider.value = savedLead;
         leadDisplay.textContent = `${savedLead} p`;
     }
+
+    const goldAdvanceInput = document.getElementById('vip-gold-advance');
+    if (goldAdvanceInput) goldAdvanceInput.value = savedGoldAdvance;
+
+    const prioritySlotsInput = document.getElementById('vip-priority-slots');
+    if (prioritySlotsInput) prioritySlotsInput.value = savedPrioritySlots;
+
+    const homeSlotsInput = document.getElementById('vip-home-slots');
+    if (homeSlotsInput) homeSlotsInput.value = savedHomeSlots;
+
+    const maxEntitlementsInput = document.getElementById('subscription-max-entitlements');
+    if (maxEntitlementsInput) maxEntitlementsInput.value = savedMaxEntitlements;
+
+    const lateCancelReturnInput = document.getElementById('subscription-late-cancel-return');
+    if (lateCancelReturnInput) lateCancelReturnInput.checked = savedLateCancelReturn;
 
     // Set Opening Hours UI
     const startSel = document.getElementById('opening-start');
@@ -1391,6 +1915,31 @@ if (settingsForm) {
         const endSel = document.getElementById('opening-end');
         if (startSel) localStorage.setItem('settings_openingStart', startSel.value);
         if (endSel) localStorage.setItem('settings_openingEnd', endSel.value);
+
+        const goldAdvanceInput = document.getElementById('vip-gold-advance');
+        if (goldAdvanceInput) {
+            localStorage.setItem('settings_vipGoldAdvanceDays', goldAdvanceInput.value || 0);
+        }
+
+        const prioritySlotsInput = document.getElementById('vip-priority-slots');
+        if (prioritySlotsInput) {
+            localStorage.setItem('settings_vipPrioritySlots', prioritySlotsInput.value.trim());
+        }
+
+        const homeSlotsInput = document.getElementById('vip-home-slots');
+        if (homeSlotsInput) {
+            localStorage.setItem('settings_vipHomeSlots', homeSlotsInput.value.trim());
+        }
+
+        const maxEntitlementsInput = document.getElementById('subscription-max-entitlements');
+        if (maxEntitlementsInput) {
+            localStorage.setItem('settings_subscriptionMaxEntitlements', maxEntitlementsInput.value || 4);
+        }
+
+        const lateCancelReturnInput = document.getElementById('subscription-late-cancel-return');
+        if (lateCancelReturnInput) {
+            localStorage.setItem('settings_subscriptionLateCancelReturn', lateCancelReturnInput.checked ? 'true' : 'false');
+        }
 
         // New Open Days
         const selectedDays = [];
@@ -1670,6 +2219,8 @@ function openModal(modalId) {
     if (modalId === 'schedule-modal') renderSchedule();
     if (modalId === 'settings-modal') loadSettings();
     if (modalId === 'finance-modal') renderFinance('month'); // Default view
+    if (modalId === 'subscriptions-modal') renderSubscriptionsModal();
+    if (modalId === 'promotions-modal') renderPromotions();
 
     if (modalId === 'services-modal') renderServices();
     if (modalId === 'announcement-modal') renderAnnouncements();
@@ -1690,6 +2241,80 @@ function openModal(modalId) {
         modal.style.opacity = '1';
         modal.querySelector('.modal-content').style.transform = 'scale(1)';
     }, 10);
+}
+
+function renderSubscriptionsModal() {
+    renderSubscriptionsTable();
+    renderSubscriptionLogs();
+}
+
+function renderSubscriptionsTable() {
+    const tableBody = document.querySelector('#subscriptions-table tbody');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+
+    const activeSubs = appUsers.filter(u => u.subscription && u.subscription.active);
+    if (activeSubs.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align:center; opacity:0.6;">Nincs aktív előfizetés.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    activeSubs.forEach(user => {
+        const sub = user.subscription || {};
+        const entitlements = sub.entitlements ?? 0;
+        const maxEntitlements = sub.maxEntitlements ?? '-';
+        const lastAccrual = sub.lastEntitlementAt ? Core.formatDate(sub.lastEntitlementAt) : '-';
+        const startDate = sub.startDate ? Core.formatDate(sub.startDate) : '-';
+        const status = sub.active ? 'Aktív' : 'Szüneteltetett';
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${user.name}</strong><br><small style="opacity:0.6;">${user.id}</small></td>
+            <td>${status}</td>
+            <td>${entitlements} / ${maxEntitlements}</td>
+            <td>${lastAccrual}</td>
+            <td>${startDate}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+function renderSubscriptionLogs() {
+    const tableBody = document.querySelector('#subscription-log-table tbody');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+
+    if (!Array.isArray(appSubscriptionLogs) || appSubscriptionLogs.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align:center; opacity:0.6;">Nincs jogosultság napló.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    const sortedLogs = [...appSubscriptionLogs].sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bTime - aTime;
+    });
+
+    sortedLogs.forEach(log => {
+        const row = document.createElement('tr');
+        const createdAt = log.createdAt ? Core.formatDate(log.createdAt) : '-';
+        row.innerHTML = `
+            <td>${createdAt}</td>
+            <td>${log.type || '-'}</td>
+            <td>${log.userName || '-'}</td>
+            <td>${log.targetUserName || '-'}</td>
+            <td>${log.amount ?? '-'}</td>
+            <td>${log.note || '-'}</td>
+        `;
+        tableBody.appendChild(row);
+    });
 }
 
 function updateFinanceMonthSelector() {
@@ -1806,11 +2431,15 @@ window.approveVIP = function (reqId) {
 
     if (userIndex > -1) {
         // Upgrade User
+        const maxEntitlements = parseInt(localStorage.getItem('settings_subscriptionMaxEntitlements')) || 4;
         appUsers[userIndex].subscription = {
             active: true,
             type: 'weekly_shine',
             startDate: new Date().toISOString(),
-            lastWashDate: null
+            lastWashDate: null,
+            entitlements: appUsers[userIndex].subscription?.entitlements || 0,
+            maxEntitlements,
+            lastEntitlementAt: new Date().toISOString()
         };
         appUsers[userIndex].level = 'Diamond'; // VIP Level
 
@@ -1912,12 +2541,16 @@ window.saveUserEdit = function () {
 
         // Preserve existing sub details if just editing date
         const existingSub = appUsers[userIndex].subscription || {};
+        const maxEntitlements = parseInt(localStorage.getItem('settings_subscriptionMaxEntitlements')) || 4;
 
         appUsers[userIndex].subscription = {
             active: true,
             type: 'weekly_shine',
             startDate: new Date(startDateVal).toISOString(),
-            lastWashDate: existingSub.lastWashDate || null
+            lastWashDate: existingSub.lastWashDate || null,
+            entitlements: existingSub.entitlements || 0,
+            maxEntitlements,
+            lastEntitlementAt: existingSub.lastEntitlementAt || new Date().toISOString()
         };
         appUsers[userIndex].level = 'Diamond'; // Auto-Upgrade
     } else {

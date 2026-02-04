@@ -39,8 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
             initDashboard();
         }
 
-        // Nap és idő alapú frissítés: Ajándék állapot periodikus ellenőrzése
-        renderGiftStatus();
+        // Nap és idő alapú frissítés: jogosultság ellenőrzés
+        ensureSubscriptionEntitlements(currentUser);
         updateInfoHub();
     }, 5000);
 
@@ -48,7 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updateInfoHub(); // Initial info hub update
     Core.setupLiveClock('current-date');
     Core.updateSystemHeartbeat(); // Új: Időfrissítés belépéskor
-    setupGiftForm();
+    setupGiftPurchaseForm();
+    setupGiftRedeemForm();
 
     // Merged from duplicate listener
     updateToggleUI();
@@ -198,6 +199,7 @@ function checkUserRegistration() {
 }
 
 function initDashboard() {
+    ensureSubscriptionEntitlements(currentUser);
     updateUserInfo();
     updateGarageCount();
     renderCarList();
@@ -481,6 +483,9 @@ function renderInfoServices() {
 
 function closeModal(id) {
     Core.closeModal(id);
+    if (id === 'booking-modal') {
+        selectedCarForBooking = null;
+    }
 }
 
 // --- Theme Management ---
@@ -492,7 +497,14 @@ function setAppTheme(themeName) {
 
 function openGarageModal() { openModal('garage-modal'); }
 function openServiceModal() { openModal('service-modal'); }
-function openBookingModal() { openModal('booking-modal'); }
+function openBookingModal() {
+    if (!selectedCarForBooking) {
+        alert("A foglalás kizárólag a Garázsból indítható. Válassz egy autót!");
+        openGarageModal();
+        return;
+    }
+    openModal('booking-modal');
+}
 
 // --- Booking Wizard Logic ---
 
@@ -512,6 +524,125 @@ function getOpenDays() {
 
 const SLOT_DURATION_MINS = 30;
 const BOOKING_DAYS_WINDOW = 28;
+let selectedCarForBooking = null;
+const CANCELLATION_WINDOW_MIN = 120;
+const ENTITLEMENT_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+function getCancellationDeadline(booking) {
+    const createdAt = booking?.created ? new Date(booking.created) : new Date();
+    return createdAt.getTime() + CANCELLATION_WINDOW_MIN * 60000;
+}
+
+function getCancellationRemainingMs(booking) {
+    return getCancellationDeadline(booking) - Date.now();
+}
+
+function formatCountdown(ms) {
+    if (ms <= 0) return '00:00:00';
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function logCancellationEvent({ booking, withinWindow, capacityReleased }) {
+    const logs = Core.getData('admin_cancel_logs');
+    const vipLevel = (booking?.vipLevel || currentUser?.level || 'Bronze').toString();
+    logs.push({
+        id: `cancel_${Date.now()}`,
+        bookingId: booking?.id || null,
+        userId: booking?.userId || currentUser?.id || null,
+        userName: booking?.userName || currentUser?.name || 'Ismeretlen',
+        carPlate: booking?.carPlate || null,
+        bookingDate: booking?.date || null,
+        bookingTime: booking?.time || null,
+        cancelledAt: new Date().toISOString(),
+        withinWindow,
+        vipLevel,
+        capacityReleased
+    });
+    Core.saveData('admin_cancel_logs', logs);
+}
+
+function getSubscriptionSettings() {
+    return {
+        maxEntitlements: parseInt(localStorage.getItem('settings_subscriptionMaxEntitlements')) || 4,
+        lateCancelReturn: localStorage.getItem('settings_subscriptionLateCancelReturn') === 'true'
+    };
+}
+
+function logSubscriptionEvent({ type, user, targetUser, amount, note }) {
+    const logs = Core.getData('subscription_entitlement_logs');
+    logs.push({
+        id: `ent_${Date.now()}`,
+        type,
+        userId: user?.id || null,
+        userName: user?.name || 'Ismeretlen',
+        targetUserId: targetUser?.id || null,
+        targetUserName: targetUser?.name || '-',
+        amount,
+        note: note || '',
+        createdAt: new Date().toISOString()
+    });
+    Core.saveData('subscription_entitlement_logs', logs);
+}
+
+function ensureSubscriptionEntitlements(user) {
+    if (!user || !user.subscription || !user.subscription.active) return;
+
+    const settings = getSubscriptionSettings();
+    const subscription = user.subscription;
+    const maxEntitlements = settings.maxEntitlements;
+
+    if (subscription.entitlements === undefined) subscription.entitlements = 0;
+    if (!subscription.lastEntitlementAt) {
+        subscription.lastEntitlementAt = subscription.startDate || new Date().toISOString();
+    }
+    subscription.maxEntitlements = maxEntitlements;
+
+    const lastAccrual = new Date(subscription.lastEntitlementAt).getTime();
+    const now = Date.now();
+    const weeksPassed = Math.floor((now - lastAccrual) / ENTITLEMENT_WEEK_MS);
+
+    if (weeksPassed > 0) {
+        const newEntitlements = Math.min(maxEntitlements, subscription.entitlements + weeksPassed);
+        const added = newEntitlements - subscription.entitlements;
+        subscription.entitlements = newEntitlements;
+        subscription.lastEntitlementAt = new Date(lastAccrual + weeksPassed * ENTITLEMENT_WEEK_MS).toISOString();
+        if (added > 0) {
+            logSubscriptionEvent({
+                type: 'Jóváírás',
+                user,
+                amount: added,
+                note: `Heti jogosultság jóváírás (${weeksPassed} hét)`
+            });
+        }
+        Core.saveData('app_users', appUsers);
+    }
+}
+function getVipTier() {
+    const level = (currentUser && currentUser.level ? currentUser.level : 'Bronze').toLowerCase();
+    if (level === 'gold') return 'gold';
+    if (level === 'diamond' || level === 'platina') return 'platina';
+    return 'alap';
+}
+
+function parseVipSlotList(raw) {
+    if (!raw) return [];
+    return raw
+        .split(',')
+        .map(item => item.trim())
+        .filter(item => /^\d{2}:\d{2}$/.test(item));
+}
+
+function getVipSlotSettings() {
+    return {
+        goldAdvanceDays: parseInt(localStorage.getItem('settings_vipGoldAdvanceDays')) || 0,
+        prioritySlots: parseVipSlotList(localStorage.getItem('settings_vipPrioritySlots')),
+        homeSlots: parseVipSlotList(localStorage.getItem('settings_vipHomeSlots'))
+    };
+}
 
 // State
 let selectedDate = null;
@@ -585,16 +716,15 @@ function updateStepUI() {
         document.getElementById('conf-price').innerText = Core.formatCurrency(totalPrice);
 
 
-        // Populate Car Select
-        const carSelect = document.getElementById('booking-car-select');
-        carSelect.innerHTML = '<option value="" disabled selected>-- Válassz a garázsból --</option>';
-
-        cars.forEach(car => {
-            const option = document.createElement('option');
-            option.value = car.plate || `${car.brand} ${car.model}`;
-            option.text = `${car.brand} ${car.model} (${car.plate || 'Nincs rendszám'})`;
-            carSelect.appendChild(option);
-        });
+        const carDisplay = document.getElementById('booking-car-display');
+        const carHidden = document.getElementById('booking-car-id');
+        if (selectedCarForBooking) {
+            if (carDisplay) carDisplay.innerText = selectedCarForBooking.label;
+            if (carHidden) carHidden.value = selectedCarForBooking.id;
+        } else {
+            if (carDisplay) carDisplay.innerText = 'Nincs kiválasztott autó';
+            if (carHidden) carHidden.value = '';
+        }
 
         // Initialize Payment Options
         renderPaymentOptions();
@@ -650,16 +780,13 @@ function renderServicesWizard() {
     // Preparation for VIP logic
     let vipHtml = '';
     if (currentUser && currentUser.subscription && currentUser.subscription.active) {
-        const lastWash = currentUser.subscription.lastWashDate;
-        const usedThisWeek = lastWash && isDateInCurrentWeek(new Date(lastWash));
-        const quotaUsed = currentUser.subscription.quotaUsed || 0;
-        const totalQuota = 4;
-        const quotaFull = quotaUsed >= totalQuota;
-        const isValues = (!usedThisWeek && !quotaFull);
+        ensureSubscriptionEntitlements(currentUser);
+        const entitlements = currentUser.subscription.entitlements || 0;
+        const maxEntitlements = currentUser.subscription.maxEntitlements ?? getSubscriptionSettings().maxEntitlements;
+        const isValues = entitlements > 0;
 
         const isSelected = selectedService && selectedService.id === 'vip_wash';
-        const statusMsg = quotaFull ? `(Havi keret betelt: ${quotaUsed}/${totalQuota})` :
-            (usedThisWeek ? "(Ezen a héten már használtad)" : `(Elérhető: ${quotaUsed}/${totalQuota})`);
+        const statusMsg = isValues ? `(Elérhető: ${entitlements}/${maxEntitlements})` : "(Nincs elérhető jogosultság)";
 
         vipHtml = `
             <div class="service-select-card ${isValues ? '' : 'disabled'}" 
@@ -775,8 +902,11 @@ function renderCalendar() {
     const today = new Date();
     const openDays = getOpenDays();
     let html = '';
+    const vipTier = getVipTier();
+    const { goldAdvanceDays } = getVipSlotSettings();
+    const daysWindow = vipTier === 'gold' ? BOOKING_DAYS_WINDOW + goldAdvanceDays : BOOKING_DAYS_WINDOW;
 
-    for (let i = 0; i < BOOKING_DAYS_WINDOW; i++) {
+    for (let i = 0; i < daysWindow; i++) {
         const date = new Date(today);
         date.setDate(today.getDate() + i);
         const dateStr = Core.getISODate(date);
@@ -839,6 +969,8 @@ function renderSlots(dateStr) {
     appBookings = JSON.parse(localStorage.getItem('app_bookings')) || [];
     const pufferMin = parseInt(localStorage.getItem('settings_pufferMin')) || 15;
     const leadTimeMin = parseInt(localStorage.getItem('settings_leadTimeMin')) || 60; // Nap és idő alapú Lead Time
+    const vipTier = getVipTier();
+    const { prioritySlots, homeSlots } = getVipSlotSettings();
 
     // Dynamic Service Duration
     const { duration: serviceMin } = calculateTotals();
@@ -928,6 +1060,14 @@ function renderSlots(dateStr) {
 
         const slotBtn = document.createElement('div');
 
+        const isPriority = prioritySlots.includes(timeStr);
+        const isHomeSlot = homeSlots.includes(timeStr);
+
+        if ((isPriority || isHomeSlot) && vipTier !== 'platina') {
+            slotTimeIter.setMinutes(slotTimeIter.getMinutes() + SLOT_STEP_MINS);
+            continue;
+        }
+
         if (isBlocked || isPast || isTooSoon) {
             slotBtn.className = 'time-slot booked';
             if (isPast) slotBtn.title = "Ez az időpont már elmúlt";
@@ -938,7 +1078,8 @@ function renderSlots(dateStr) {
             slotBtn.onclick = () => selectTime(timeStr, slotBtn);
         }
 
-        slotBtn.innerText = timeStr;
+        const badge = isPriority ? ' • VIP' : (isHomeSlot ? ' • Házhoz' : '');
+        slotBtn.innerText = `${timeStr}${badge}`;
 
         if (selectedTime === timeStr) {
             slotBtn.classList.add('selected');
@@ -960,8 +1101,14 @@ function selectTime(timeStr, btnElement) {
 function renderPaymentOptions() {
     const optReward = document.getElementById('opt-reward');
     const optSub = document.getElementById('opt-sub');
+    const optGift = document.getElementById('opt-gift');
     const points = currentUser.activePoints || 0;
     const hasSub = currentUser.subscription && currentUser.subscription.active;
+    if (hasSub) {
+        ensureSubscriptionEntitlements(currentUser);
+    }
+    const entitlements = hasSub ? (currentUser.subscription.entitlements || 0) : 0;
+    const giftEntitlements = currentUser.giftEntitlements || 0;
 
     if (optReward) {
         if (points >= 5) {
@@ -975,20 +1122,26 @@ function renderPaymentOptions() {
 
     if (optSub) {
         if (hasSub) {
-            // Check if weekly wash used
-            const lastWash = currentUser.subscription.lastWashDate;
-            const isThisWeek = lastWash && isDateInCurrentWeek(new Date(lastWash));
-
-            if (!isThisWeek) {
+            if (entitlements > 0) {
                 optSub.disabled = false;
-                optSub.innerText = "Heti ingyen mosás (Elérhető)";
+                optSub.innerText = `Előfizetéses HFZ (${entitlements} elérhető)`;
             } else {
                 optSub.disabled = true;
-                optSub.innerText = "Heti ingyen mosás (Ezen a héten már használtad)";
+                optSub.innerText = "Előfizetéses HFZ (Nincs jogosultság)";
             }
         } else {
             optSub.disabled = true;
             optSub.innerText = "Heti ingyen mosás (Nincs előfizetés)";
+        }
+    }
+
+    if (optGift) {
+        if (giftEntitlements > 0) {
+            optGift.disabled = false;
+            optGift.innerText = `Ajándék HFZ (${giftEntitlements} elérhető)`;
+        } else {
+            optGift.disabled = true;
+            optGift.innerText = "Ajándék HFZ (Nincs jogosultság)";
         }
     }
 }
@@ -1001,8 +1154,12 @@ function updateFinalConfirmationPrice() {
 
     if (method === 'normal') {
         display.innerText = `${Core.formatCurrency(totalPrice)} (+1 pont)`;
+    } else if (method === 'reward') {
+        display.innerText = `${Core.formatCurrency(0)} (5 pont beszámítva)`;
+    } else if (method === 'gift') {
+        display.innerText = `${Core.formatCurrency(0)} (Ajándék HFZ)`;
     } else {
-        display.innerText = `${Core.formatCurrency(0)} (${method === 'reward' ? '5 pont beszámítva' : 'Előfizetői mosás'})`;
+        display.innerText = `${Core.formatCurrency(0)} (Előfizetői mosás)`;
     }
 }
 
@@ -1022,15 +1179,12 @@ function confirmBooking() {
 
     const method = document.getElementById('payment-method-choice')?.value || 'normal';
 
-    // Validate Car Selection
-    const carSelect = document.getElementById('booking-car-select');
-    const selectedCarValue = carSelect.value;
-    const selectedCarText = carSelect.options[carSelect.selectedIndex].text;
-
-    if (!selectedCarValue) {
-        alert("Kérlek válassz egy autót a foglaláshoz! Ha nincs, adj hozzá egyet a garázsban.");
+    if (!selectedCarForBooking) {
+        alert("Nincs kiválasztott autó. Kérlek indítsd a foglalást a Garázsból.");
         return;
     }
+    const selectedCarValue = selectedCarForBooking.id;
+    const selectedCarText = selectedCarForBooking.label;
 
     // Check for existing active booking for this car
     const existingBooking = appBookings.find(b =>
@@ -1085,6 +1239,7 @@ function confirmBooking() {
     // Check if VIP Service was selected directly OR Subscription Payment Method Used
     const isVipWash = (selectedService.id === 'vip_wash');
     const isSubscriptionPayment = (method === 'subscription'); // NEW: Explicit check
+    const isGiftPayment = (method === 'gift');
 
     // Legacy Payment Method Check (if used)
     let isRewardUsed = (method === 'reward');
@@ -1092,6 +1247,21 @@ function confirmBooking() {
     let finalPrice = totalPrice;
 
     if (isVipWash || isSubscriptionPayment) {
+        if (!currentUser.subscription || !currentUser.subscription.active) {
+            alert("Nincs aktív előfizetésed a jogosultság felhasználásához.");
+            return;
+        }
+        ensureSubscriptionEntitlements(currentUser);
+        if ((currentUser.subscription.entitlements || 0) <= 0) {
+            alert("Nincs elérhető előfizetéses jogosultság.");
+            return;
+        }
+        finalPrice = 0;
+    } else if (isGiftPayment) {
+        if ((currentUser.giftEntitlements || 0) <= 0) {
+            alert("Nincs elérhető ajándék jogosultság.");
+            return;
+        }
         finalPrice = 0;
     } else if (isRewardUsed) {
         finalPrice = 0;
@@ -1105,6 +1275,7 @@ function confirmBooking() {
         id: bookingId,
         userId: currentUser.id,
         userName: currentUser.name,
+        vipLevel: currentUser.level || 'Bronze',
         carPlate: selectedCarValue,
         carDetails: selectedCarText, // Snapshot of car info
 
@@ -1122,6 +1293,8 @@ function confirmBooking() {
         price: finalPrice,
         rewardUsed: isRewardUsed,
         isSubscription: (isVipWash || isSubscriptionPayment), // Flag for easier tracking
+        entitlementUsed: (isVipWash || isSubscriptionPayment),
+        giftEntitlementUsed: isGiftPayment,
 
         date: selectedDate,
         time: selectedTime,
@@ -1138,12 +1311,35 @@ function confirmBooking() {
     const userIndex = appUsers.findIndex(u => u.id === currentUser.id);
     if (userIndex > -1) {
         if (isVipWash || isSubscriptionPayment) {
-            // VIP Usage Logic
-            if (!appUsers[userIndex].subscription.quotaUsed) appUsers[userIndex].subscription.quotaUsed = 0;
-            appUsers[userIndex].subscription.quotaUsed += 1;
-            appUsers[userIndex].subscription.lastWashDate = new Date().toISOString();
-        }
-        else if (isRewardUsed) {
+            const subscription = appUsers[userIndex].subscription || {};
+            const entitlements = subscription.entitlements || 0;
+            if (entitlements <= 0) {
+                alert("Nincs elérhető előfizetéses jogosultság.");
+                return;
+            }
+            subscription.entitlements = Math.max(0, entitlements - 1);
+            appUsers[userIndex].subscription = subscription;
+            logSubscriptionEvent({
+                type: 'Felhasználás',
+                user: appUsers[userIndex],
+                amount: 1,
+                note: `Foglalás: ${selectedDate} ${selectedTime}`
+            });
+        } else if (isGiftPayment) {
+            const currentGifts = appUsers[userIndex].giftEntitlements || 0;
+            if (currentGifts <= 0) {
+                alert("Nincs elérhető ajándék jogosultság.");
+                return;
+            }
+            appUsers[userIndex].giftEntitlements = Math.max(0, currentGifts - 1);
+            logGiftEvent({
+                type: 'Felhasználás',
+                code: '-',
+                user: appUsers[userIndex],
+                amount: 1,
+                note: `Foglalás: ${selectedDate} ${selectedTime}`
+            });
+        } else if (isRewardUsed) {
             // Points Redemption Logic
             appUsers[userIndex].activePoints = Math.max(0, (appUsers[userIndex].activePoints || 0) - 5);
             // Points for this visit will be awarded by Admin upon completion
@@ -1163,10 +1359,13 @@ function confirmBooking() {
 
     alert(`Sikeres foglalás!\n\n${selectedDate} - ${selectedTime}\n${selectedService.name} (${selectedService.duration} p)\n${selectedCarText}`);
     closeModal('booking-modal');
+    selectedCarForBooking = null;
 
     // Refresh Dashboard
     checkForActiveBooking();
     renderCarList(); // Update car list to show active status
+    renderCalendar();
+    if (selectedDate) renderSlots(selectedDate);
 }
 
 // Review Logic
@@ -1254,13 +1453,21 @@ function updateSubscriptionUI() {
     const infoEl = document.getElementById('sub-active-info');
     const offerEl = document.getElementById('sub-offer-details'); // NEW
     const nextWashEl = document.getElementById('sub-next-wash');
+    const giftEntitlementEl = document.getElementById('gift-entitlement-count');
     const buyBtn = document.getElementById('btn-buy-sub');
     const tileSubStatus = document.getElementById('sub-status-tile'); // NEW Tile Status
 
     if (!currentUser) return;
 
+    const giftEntitlements = currentUser.giftEntitlements || 0;
+    if (giftEntitlementEl) {
+        giftEntitlementEl.innerText = `Ajándék jogosultság: ${giftEntitlements} db`;
+        giftEntitlementEl.style.color = giftEntitlements > 0 ? '#4cc9f0' : '#aaaaaa';
+    }
+
     // 1. Check for Active Subscription
     if (currentUser.subscription && currentUser.subscription.active) {
+        ensureSubscriptionEntitlements(currentUser);
         if (statusEl) {
             statusEl.innerText = 'AKTÍV 👑';
             statusEl.style.color = '#4cc9f0';
@@ -1269,45 +1476,17 @@ function updateSubscriptionUI() {
         if (offerEl) offerEl.style.display = 'none'; // Hide offer details if active
         if (buyBtn) buyBtn.style.display = 'none';
 
-        // Check/Init Quota
-        const now = new Date();
-        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const entitlements = currentUser.subscription.entitlements || 0;
+        const maxEntitlements = currentUser.subscription.maxEntitlements ?? getSubscriptionSettings().maxEntitlements;
 
-        if (!currentUser.subscription.quotaUsed) currentUser.subscription.quotaUsed = 0;
-        if (currentUser.subscription.lastUsageCycle !== currentMonth) {
-            // New month, reset quota
-            currentUser.subscription.quotaUsed = 0;
-            currentUser.subscription.lastUsageCycle = currentMonth;
-            // Save immediately to avoid glitches
-            Core.saveData('app_users', appUsers);
+        if (nextWashEl) {
+            nextWashEl.innerText = `Elérhető jogosultság: ${entitlements}/${maxEntitlements}`;
+            nextWashEl.style.color = entitlements > 0 ? '#00ff00' : '#ff4d4d';
         }
 
-        const quotaUsed = currentUser.subscription.quotaUsed;
-        const totalQuota = 4;
-        const remaining = totalQuota - quotaUsed;
-
-        const lastWash = currentUser.subscription.lastWashDate;
-        const usedThisWeek = lastWash && isDateInCurrentWeek(new Date(lastWash));
-
-        let statusText = "";
-
-        if (quotaUsed >= totalQuota) {
-            statusText = `Havi keret betelt (${quotaUsed}/${totalQuota}).`;
-            if (nextWashEl) nextWashEl.style.color = '#ff4d4d'; // Red
-        } else if (usedThisWeek) {
-            statusText = `Ezen a héten már használtad. (Havi: ${quotaUsed}/${totalQuota})`;
-            if (nextWashEl) nextWashEl.style.color = '#ffd700'; // Yellow
-        } else {
-            statusText = `A heti ingyenes mosásod elérhető! (Havi: ${quotaUsed}/${totalQuota})`;
-            if (nextWashEl) nextWashEl.style.color = '#00ff00'; // Green
-        }
-
-        if (nextWashEl) nextWashEl.innerText = statusText;
-
-        // Update Tile Sub Status
         if (tileSubStatus) {
-            tileSubStatus.innerText = `Aktív (${quotaUsed}/${totalQuota})`;
-            tileSubStatus.style.color = '#00ff00';
+            tileSubStatus.innerText = `Aktív (${entitlements}/${maxEntitlements})`;
+            tileSubStatus.style.color = entitlements > 0 ? '#00ff00' : '#ffd700';
         }
         return;
     }
@@ -1399,6 +1578,74 @@ function transferShinePoints() {
         updateShineDisplay();
         document.getElementById('transfer-target-id').value = '';
         document.getElementById('transfer-amount').value = '';
+    }
+}
+
+function transferSubscriptionEntitlements() {
+    const targetVal = document.getElementById('entitlement-transfer-target').value.trim();
+    const amount = parseInt(document.getElementById('entitlement-transfer-amount').value);
+
+    if (!currentUser || !currentUser.subscription || !currentUser.subscription.active) {
+        alert("Nincs aktív előfizetésed a jogosultság átadásához.");
+        return;
+    }
+
+    if (!targetVal || isNaN(amount) || amount <= 0) {
+        alert("Kérlek adj meg érvényes célpontot és darabszámot!");
+        return;
+    }
+
+    ensureSubscriptionEntitlements(currentUser);
+    const senderEntitlements = currentUser.subscription.entitlements || 0;
+
+    if (senderEntitlements < amount) {
+        alert("Nincs ennyi jogosultságod!");
+        return;
+    }
+
+    const targetUserIndex = appUsers.findIndex(u => u.id === targetVal || u.name.toLowerCase() === targetVal.toLowerCase());
+    if (targetUserIndex === -1) {
+        alert("Nem találom a megadott felhasználót!");
+        return;
+    }
+
+    const targetUser = appUsers[targetUserIndex];
+    if (targetUser.id === currentUser.id) {
+        alert("Magadnak nem adhatsz át jogosultságot!");
+        return;
+    }
+
+    if (confirm(`Biztosan átadsz ${amount} jogosultságot neki: ${targetUser.name}?`)) {
+        const senderIndex = appUsers.findIndex(u => u.id === currentUser.id);
+        const settings = getSubscriptionSettings();
+        const maxEntitlements = settings.maxEntitlements;
+
+        appUsers[senderIndex].subscription.entitlements = Math.max(0, senderEntitlements - amount);
+
+        if (!appUsers[targetUserIndex].subscription) {
+            appUsers[targetUserIndex].subscription = {
+                active: false
+            };
+        }
+        const targetEntitlements = appUsers[targetUserIndex].subscription.entitlements || 0;
+        appUsers[targetUserIndex].subscription.entitlements = Math.min(maxEntitlements, targetEntitlements + amount);
+
+        Core.saveData('app_users', appUsers);
+        currentUser = appUsers[senderIndex];
+        Core.saveData('currentUser', currentUser);
+
+        logSubscriptionEvent({
+            type: 'Átadás',
+            user: appUsers[senderIndex],
+            targetUser,
+            amount,
+            note: 'Jogosultság átadás'
+        });
+
+        alert("Sikeres jogosultság átadás! 👑");
+        updateSubscriptionUI();
+        document.getElementById('entitlement-transfer-target').value = '';
+        document.getElementById('entitlement-transfer-amount').value = '';
     }
 }
 
@@ -1571,7 +1818,7 @@ function updateToggleUI() {
 }
 
 function updateGarageCount() {
-    const count = cars.length;
+    const count = cars.filter(car => car.active !== false).length;
     document.getElementById('garage-count').innerText = `${count} autó`;
 }
 
@@ -1582,12 +1829,14 @@ function renderCarList() {
     // Clear previous interval to prevent duplicates
     if (garageTimerInterval) clearInterval(garageTimerInterval);
 
-    if (cars.length === 0) {
+    const visibleCars = cars.filter(car => car.active !== false);
+
+    if (visibleCars.length === 0) {
         list.innerHTML = '<p class="empty-state">Még nincs autód a garázsban.</p>';
         return;
     }
 
-    cars.forEach((car, index) => {
+    visibleCars.forEach((car, index) => {
         const item = document.createElement('div');
         item.className = `car-card ${garageView === 'holographic' ? 'holographic-card' : ''}`;
 
@@ -1608,6 +1857,12 @@ function renderCarList() {
 
         // Check if THIS car is active (Independent check)
         const carId = car.plate || `${car.brand} ${car.model}`;
+        const vipLevel = (car.vipLevel || currentUser?.level || 'Bronze').toString();
+        const vipLabel = vipLevel.toLowerCase() === 'gold'
+            ? 'Gold'
+            : (vipLevel.toLowerCase() === 'diamond' || vipLevel.toLowerCase() === 'platina')
+                ? 'Platina'
+                : 'Alap';
 
         // Find SPECIFIC booking for this car
         // Should show for ANY status except completed/cancelled
@@ -1616,6 +1871,18 @@ function renderCarList() {
             ['active', 'on_way', 'arrived', 'started'].includes(b.status)
         );
         const isActive = !!activeBooking;
+        const nextBooking = appBookings
+            .filter(b =>
+                b.carPlate === carId &&
+                ['active', 'on_way', 'arrived', 'started'].includes(b.status)
+            )
+            .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
+        const nextBookingLabel = nextBooking ? `${nextBooking.date} ${nextBooking.time}` : 'Nincs';
+
+        const remainingMs = isActive ? getCancellationRemainingMs(activeBooking) : 0;
+        const canCancel = isActive && remainingMs > 0;
+        const remainingRatio = remainingMs / (CANCELLATION_WINDOW_MIN * 60000);
+        const countdownColor = remainingRatio > 0.5 ? '#00ff00' : (remainingRatio > 0.2 ? '#ffc107' : '#ff4d4d');
 
         // Status Text & Style
         let statusBadge = '';
@@ -1652,6 +1919,7 @@ function renderCarList() {
                     <h4>${car.brand} ${car.model}</h4>
                     <div style="display:flex; align-items:center; gap:10px; flex-wrap: wrap;">
                         <span class="car-plate">${car.plate || 'NO-PLATE'}</span>
+                        <span style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-size: 0.75em; color: #ffd700; border: 1px solid #ffd700;">VIP: ${vipLabel}</span>
                         ${statusBadge}
                         ${isActive ? `<span id="${timerId}" class="plate-timer" data-target="${activeBooking.date}T${activeBooking.time}" style="color:#e81123; font-weight:bold; font-family:monospace; font-size:1.1em; margin-left: auto;">Számítás...</span>` : ''}
                     </div>
@@ -1660,14 +1928,25 @@ function renderCarList() {
             
             <div class="car-details-grid">
                 <div class="detail-item">
-                    <span class="detail-label">Kategória</span>
-                    <span class="detail-value">Személyautó</span>
+                    <span class="detail-label">Autó azonosító</span>
+                    <span class="detail-value">${carId}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Következő foglalás</span>
+                    <span class="detail-value">${nextBookingLabel}</span>
                 </div>
                 
                 ${isActive ?
                 `<div class="detail-item active-countdown-card" style="border-bottom: 1px solid rgba(76, 201, 240, 0.1); padding-bottom: 8px; margin-bottom: 8px;">
                     <span class="detail-label">Foglalás:</span>
                     <span class="detail-value" style="color: #4cc9f0;">${activeBooking.date}, ${activeBooking.time}</span>
+                 </div>
+                 <div class="detail-item">
+                    <span class="detail-label">Lemondásig:</span>
+                    <span class="detail-value cancel-timer" data-deadline="${getCancellationDeadline(activeBooking)}" data-car-id="${carId}"
+                        style="color: ${canCancel ? countdownColor : '#ff4d4d'};">
+                        ${canCancel ? formatCountdown(remainingMs) : 'Lezárva'}
+                    </span>
                  </div>
                  <div class="detail-item">
                     <span class="detail-label">Szolgáltatás:</span>
@@ -1695,10 +1974,16 @@ function renderCarList() {
 
             <div class="car-actions">
                 ${isActive ?
-                `<button class="btn-delete" style="background: rgba(232, 17, 35, 0.2); width: 100%; justify-content: center;" onclick="cancelBooking('${carId}')">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    Lemondás
-                </button>`
+                (canCancel ?
+                `<div class="cancel-action" data-car-id="${carId}">
+                    <button class="btn-delete" style="background: rgba(232, 17, 35, 0.2); width: 100%; justify-content: center;" onclick="cancelBooking('${carId}')">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        Lemondás
+                    </button>
+                </div>`
+                : `<div class="cancel-action" data-car-id="${carId}" style="width:100%; text-align:center; font-size:0.85rem; color:#ff4d4d; padding:10px 0;">
+                    Lemondás lezárva
+                </div>`)
                 : unreviewedBooking ?
                     `<div style="display:flex; gap:5px; width:100%;">
                         <button class="btn-primary" style="flex:1; background: rgba(255, 193, 7, 0.2); border-color: #ffc107; color: #ffc107; justify-content: center;" onclick="openReviewModal('${unreviewedBooking.id}')">
@@ -1709,16 +1994,15 @@ function renderCarList() {
                         </button>
                     </div>`
                     :
-                    `<button class="btn-card-action" onclick="alert('Beállítások: ${car.model}')">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                    </svg>
-                    Kezelés
-                </button>
-                <button class="btn-delete" onclick="removeCar(${index})">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                </button>`
+                    `<button class="btn-card-action" onclick="startBookingFromGarage('${carId}')">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        Foglalás indítása
+                    </button>`
             }
             </div>
         `;
@@ -1727,6 +2011,20 @@ function renderCarList() {
 
     // Start Timer Update Loop
     updateGarageTimers();
+}
+
+function startBookingFromGarage(carId) {
+    const car = cars.find(item => (item.plate || `${item.brand} ${item.model}`) === carId);
+    if (!car) {
+        alert("Nem található autó a foglaláshoz.");
+        return;
+    }
+    const label = `${car.brand} ${car.model}${car.plate ? ` (${car.plate})` : ''}`;
+    selectedCarForBooking = {
+        id: carId,
+        label
+    };
+    openBookingModal();
 }
 
 function updateGarageTimers() {
@@ -1738,6 +2036,7 @@ function updateGarageTimers() {
 
 function runTimerLogic() {
     const timerElements = document.querySelectorAll('.plate-timer');
+    const cancelTimers = document.querySelectorAll('.cancel-timer');
     const now = new Date().getTime();
 
     timerElements.forEach(el => {
@@ -1768,28 +2067,141 @@ function runTimerLogic() {
 
         el.innerText = displayStr;
     });
+
+    cancelTimers.forEach(el => {
+        const deadlineStr = el.getAttribute('data-deadline');
+        const carId = el.getAttribute('data-car-id');
+        if (!deadlineStr || !carId) return;
+
+        const deadline = parseInt(deadlineStr, 10);
+        const remaining = deadline - now;
+        if (remaining <= 0) {
+            el.innerText = 'Lezárva';
+            el.style.color = '#ff4d4d';
+            const container = document.querySelector(`.cancel-action[data-car-id="${carId}"]`);
+            if (container && container.querySelector('button')) {
+                container.innerHTML = 'Lemondás lezárva';
+                container.style.color = '#ff4d4d';
+                container.style.textAlign = 'center';
+                container.style.fontSize = '0.85rem';
+                container.style.padding = '10px 0';
+            }
+            return;
+        }
+
+        const ratio = remaining / (CANCELLATION_WINDOW_MIN * 60000);
+        const color = ratio > 0.5 ? '#00ff00' : (ratio > 0.2 ? '#ffc107' : '#ff4d4d');
+        el.style.color = color;
+        el.innerText = formatCountdown(remaining);
+    });
 }
 
 function cancelBooking(carId) {
     if (confirm("Biztosan lemondod ezt a foglalást?")) {
         let bookingsChanged = false;
+        let cancellationAllowed = false;
+        let targetBooking = null;
         appBookings.forEach(booking => {
             if (booking.userId === currentUser.id &&
                 booking.carPlate === carId &&
                 booking.status === 'active') {
-
-                booking.status = 'cancelled';
-                bookingsChanged = true;
+                targetBooking = booking;
+                const remainingMs = getCancellationRemainingMs(booking);
+                if (remainingMs > 0) {
+                    booking.status = 'cancelled';
+                    booking.cancelledAt = new Date().toISOString();
+                    bookingsChanged = true;
+                    cancellationAllowed = true;
+                }
             }
         });
 
         if (bookingsChanged) {
-            localStorage.setItem('app_bookings', JSON.stringify(appBookings));
+            Core.saveData('app_bookings', appBookings);
+            if (targetBooking && targetBooking.entitlementUsed) {
+                const userIndex = appUsers.findIndex(u => u.id === targetBooking.userId);
+                if (userIndex > -1 && appUsers[userIndex].subscription) {
+                    const settings = getSubscriptionSettings();
+                    const maxEntitlements = settings.maxEntitlements;
+                    const currentEntitlements = appUsers[userIndex].subscription.entitlements || 0;
+                    const nextValue = Math.min(maxEntitlements, currentEntitlements + 1);
+                    appUsers[userIndex].subscription.entitlements = nextValue;
+                    Core.saveData('app_users', appUsers);
+                    if (currentUser && appUsers[userIndex].id === currentUser.id) {
+                        currentUser = appUsers[userIndex];
+                        Core.saveData('currentUser', currentUser);
+                    }
+                    logSubscriptionEvent({
+                        type: 'Visszaadás',
+                        user: appUsers[userIndex],
+                        amount: 1,
+                        note: 'Lemondás határidőn belül'
+                    });
+                }
+            }
+            if (targetBooking && targetBooking.giftEntitlementUsed) {
+                const userIndex = appUsers.findIndex(u => u.id === targetBooking.userId);
+                if (userIndex > -1) {
+                    const currentGifts = appUsers[userIndex].giftEntitlements || 0;
+                    appUsers[userIndex].giftEntitlements = currentGifts + 1;
+                    Core.saveData('app_users', appUsers);
+                    if (currentUser && appUsers[userIndex].id === currentUser.id) {
+                        currentUser = appUsers[userIndex];
+                        Core.saveData('currentUser', currentUser);
+                    }
+                    logGiftEvent({
+                        type: 'Visszaadás',
+                        code: '-',
+                        user: appUsers[userIndex],
+                        amount: 1,
+                        note: 'Lemondás határidőn belül'
+                    });
+                }
+            }
+            logCancellationEvent({
+                booking: targetBooking,
+                withinWindow: true,
+                capacityReleased: true
+            });
             alert("A foglalás sikeresen lemondva.");
             checkForActiveBooking();
             renderCarList(); // Refresh list to show "Cancel" gone and "Settings" back
+            renderCalendar();
+            if (selectedDate) renderSlots(selectedDate);
         } else {
-            alert("Nem található aktív foglalás ehhez az autóhoz.");
+            if (targetBooking) {
+                if (targetBooking.entitlementUsed) {
+                    const settings = getSubscriptionSettings();
+                    if (settings.lateCancelReturn) {
+                        const userIndex = appUsers.findIndex(u => u.id === targetBooking.userId);
+                        if (userIndex > -1 && appUsers[userIndex].subscription) {
+                            const maxEntitlements = settings.maxEntitlements;
+                            const currentEntitlements = appUsers[userIndex].subscription.entitlements || 0;
+                            const nextValue = Math.min(maxEntitlements, currentEntitlements + 1);
+                            appUsers[userIndex].subscription.entitlements = nextValue;
+                            Core.saveData('app_users', appUsers);
+                            if (currentUser && appUsers[userIndex].id === currentUser.id) {
+                                currentUser = appUsers[userIndex];
+                                Core.saveData('currentUser', currentUser);
+                            }
+                            logSubscriptionEvent({
+                                type: 'Visszaadás',
+                                user: appUsers[userIndex],
+                                amount: 1,
+                                note: 'Lemondás határidőn túl (admin engedélyezve)'
+                            });
+                        }
+                    }
+                }
+                logCancellationEvent({
+                    booking: targetBooking,
+                    withinWindow: false,
+                    capacityReleased: false
+                });
+                alert("A lemondási határidő lejárt, a foglalás nem mondható le.");
+            } else {
+                alert("Nem található aktív foglalás ehhez az autóhoz.");
+            }
         }
     }
 }
@@ -1814,7 +2226,7 @@ document.getElementById('add-car-form').addEventListener('submit', (e) => {
     const model = document.getElementById('car-model').value;
     const plate = document.getElementById('car-plate').value;
 
-    cars.push({ brand, model, plate });
+    cars.push({ brand, model, plate, active: true });
     saveCars();
 
     // Reset
@@ -1906,94 +2318,132 @@ function openProfileHub() {
     }
 }
 
-function setupGiftForm() {
-    const form = document.getElementById('gift-form');
+const GIFT_FIXED_PRICE = 9900;
+
+function generateGiftCode(existingCodes) {
+    const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    do {
+        code = 'HFZ-' + Array.from({ length: 6 }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
+    } while (existingCodes.some(item => item.code === code));
+    return code;
+}
+
+function logGiftEvent({ type, code, user, amount, note }) {
+    const logs = Core.getData('gift_redemption_logs');
+    logs.push({
+        id: `giftlog_${Date.now()}`,
+        type,
+        code,
+        userId: user?.id || null,
+        userName: user?.name || 'Ismeretlen',
+        amount,
+        note: note || '',
+        createdAt: new Date().toISOString()
+    });
+    Core.saveData('gift_redemption_logs', logs);
+}
+
+function setupGiftPurchaseForm() {
+    const form = document.getElementById('gift-purchase-form');
     if (!form) return;
 
-    // Remove existing to prevent duplicates if called multiple times
     const newForm = form.cloneNode(true);
     form.parentNode.replaceChild(newForm, form);
 
     newForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const recipient = document.getElementById('gift-recipient').value;
-        const car = document.getElementById('gift-car').value;
-        const address = document.getElementById('gift-address').value;
-        const date = document.getElementById('gift-date').value;
-        const time = document.getElementById('gift-time').value;
-        const message = document.getElementById('gift-message').value;
+        if (!currentUser) {
+            alert("Ajándékkód vásárlásához be kell jelentkezned.");
+            return;
+        }
 
-        const giftBooking = {
-            id: 'gift_' + Date.now(),
-            userId: currentUser.id,
-            userName: currentUser.name,
-            recipientName: recipient,
-            carPlate: car,
-            address: address,
-            date: date,
-            time: time,
-            message: message,
+        const recipient = document.getElementById('gift-purchase-recipient').value.trim();
+        const codes = Core.getData('gift_codes');
+        const newCode = generateGiftCode(codes);
+        codes.push({
+            code: newCode,
             status: 'active',
-            isGift: true,
-            created: new Date().toISOString()
-        };
+            createdAt: new Date().toISOString(),
+            createdByUserId: currentUser.id,
+            createdByName: currentUser.name,
+            recipientName: recipient || null
+        });
+        Core.saveData('gift_codes', codes);
+        logGiftEvent({
+            type: 'Létrehozás',
+            code: newCode,
+            user: currentUser,
+            amount: 1,
+            note: recipient ? `Cél: ${recipient}` : 'Nincs megadva'
+        });
 
-        appBookings.push(giftBooking);
-        Core.saveData('app_bookings', appBookings);
-        alert("Meglepetés rögzítve! Az adminisztrátor hamarosan jóváhagyja. 🎁");
+        const codeWrap = document.getElementById('gift-generated-code');
+        const codeValue = document.getElementById('gift-generated-code-value');
+        if (codeValue) codeValue.textContent = newCode;
+        if (codeWrap) codeWrap.style.display = 'block';
         newForm.reset();
-        Core.closeModal('gift-modal');
-        renderGiftStatus();
     });
 }
 
-function renderGiftStatus() {
-    const container = document.getElementById('my-active-gifts');
-    const list = document.getElementById('active-gifts-list');
-    if (!container || !list) return;
+function setupGiftRedeemForm() {
+    const form = document.getElementById('gift-redeem-form');
+    if (!form) return;
 
-    if (!currentUser) return;
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
 
-    const myGifts = appBookings.filter(b => b.userId === currentUser.id && b.isGift && (b.status === 'active' || b.status === 'started'));
+    newForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!currentUser) {
+            alert("Beváltáshoz be kell jelentkezned.");
+            return;
+        }
+        const codeInput = document.getElementById('gift-redeem-code');
+        const code = codeInput.value.trim().toUpperCase();
+        if (!code) {
+            alert("Add meg az ajándékkódot!");
+            return;
+        }
 
-    if (myGifts.length > 0) {
-        container.style.display = 'block';
-        list.innerHTML = '';
-        myGifts.forEach(gift => {
-            const card = document.createElement('div');
-            card.className = 'gift-status-card';
-            card.style.background = 'rgba(255,255,255,0.05)';
-            card.style.padding = '10px';
-            card.style.borderRadius = '8px';
-            card.style.marginBottom = '10px';
-            card.style.borderLeft = '4px solid #ff0055';
+        const codes = Core.getData('gift_codes');
+        const codeEntry = codes.find(item => item.code === code);
+        if (!codeEntry) {
+            alert("A kód nem található.");
+            return;
+        }
+        if (codeEntry.status !== 'active') {
+            alert("Ez a kód már nem használható.");
+            return;
+        }
 
-            const targetTs = new Date(`${gift.date}T${gift.time}`).getTime();
-            const now = new Date().getTime();
-            const distance = targetTs - now;
-            let timeStr = "Pillanat...";
+        codeEntry.status = 'redeemed';
+        codeEntry.redeemedAt = new Date().toISOString();
+        codeEntry.redeemedByUserId = currentUser.id;
+        codeEntry.redeemedByName = currentUser.name;
+        Core.saveData('gift_codes', codes);
 
-            if (distance > 0) {
-                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-                timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            } else {
-                timeStr = "FOLYAMATBAN!";
-            }
+        const userIndex = appUsers.findIndex(u => u.id === currentUser.id);
+        if (userIndex > -1) {
+            const currentEntitlements = appUsers[userIndex].giftEntitlements || 0;
+            appUsers[userIndex].giftEntitlements = currentEntitlements + 1;
+            Core.saveData('app_users', appUsers);
+            currentUser = appUsers[userIndex];
+            Core.saveData('currentUser', currentUser);
+        }
 
-            card.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <strong style="color:#ff0055;">🎁 ${gift.recipientName}</strong>
-                    <span style="font-family:monospace; font-weight:bold;">${timeStr}</span>
-                </div>
-                <div style="font-size:0.8rem; opacity:0.7;">${gift.carPlate}</div>
-            `;
-            list.appendChild(card);
+        logGiftEvent({
+            type: 'Beváltás',
+            code,
+            user: currentUser,
+            amount: 1,
+            note: 'Ajándék jogosultság létrehozva'
         });
-    } else {
-        container.style.display = 'none';
-    }
+
+        alert("Ajándékkód beváltva! 1 HFZ jogosultság hozzáadva.");
+        codeInput.value = '';
+        updateSubscriptionUI();
+    });
 }
 
 function dismissAnnouncement() {

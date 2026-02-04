@@ -239,6 +239,43 @@
                 </div>
             </div>
 
+            <!-- Subscriptions Tile (Medium) -->
+            <div class="tile tile-medium"
+                style="background: linear-gradient(135deg, rgba(0, 255, 150, 0.25), rgba(76, 201, 240, 0.25));"
+                onclick="openModal('subscriptions-modal')">
+                <div class="tile-bg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <path d="M7 8h10"></path>
+                        <path d="M7 12h10"></path>
+                        <path d="M7 16h6"></path>
+                    </svg>
+                </div>
+                <div class="tile-content">
+                    <h3>Előfizetések</h3>
+                    <p class="tile-desc" id="subscriptions-count">0 aktív</p>
+                </div>
+            </div>
+
+            <!-- Promotions Tile (Medium) -->
+            <div class="tile tile-medium"
+                style="background: linear-gradient(135deg, rgba(255, 120, 0, 0.25), rgba(255, 200, 0, 0.2));"
+                onclick="openModal('promotions-modal')">
+                <div class="tile-bg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.59 13.41 11 3.83V2h-1v1.83l-9.59 9.58a2 2 0 0 0 0 2.83l4.59 4.58a2 2 0 0 0 2.83 0L12 16.41l4.17 4.17a2 2 0 0 0 2.83 0l4.59-4.58a2 2 0 0 0 0-2.83Z">
+                        </path>
+                        <circle cx="7.5" cy="7.5" r="1.5"></circle>
+                    </svg>
+                </div>
+                <div class="tile-content">
+                    <h3>Akciók</h3>
+                    <p class="tile-desc" id="promotions-count">0 aktív</p>
+                </div>
+            </div>
+
             <!-- Settings Tile (Small) -->
             <div class="tile tile-small" onclick="openModal('settings-modal')">
                 <div class="tile-bg-icon">
@@ -281,6 +318,25 @@
                 <button class="close-btn" onclick="closeModal('schedule-modal')">×</button>
             </div>
             <div class="modal-body">
+                <section class="daily-timeline-panel">
+                    <div class="daily-timeline-header">
+                        <div>
+                            <h3>Mai idővonal (HFZ)</h3>
+                            <p class="daily-timeline-subtitle">Automatikus napi nézet, kézi módosítás nélkül.</p>
+                        </div>
+                        <div class="daily-timeline-meta">
+                            <span id="daily-timeline-date">Betöltés...</span>
+                            <span id="daily-timeline-hours">Működési idő</span>
+                        </div>
+                    </div>
+                    <div class="daily-timeline-legend">
+                        <span class="legend-item hfz">HFZ munka (20 perc)</span>
+                        <span class="legend-item travel">Utazási idő (blokkolt)</span>
+                    </div>
+                    <div id="daily-timeline-warning" class="daily-timeline-warning" aria-live="polite"></div>
+                    <div id="daily-timeline-grid" class="daily-timeline-grid" role="list"></div>
+                </section>
+
                 <div class="date-navigator" style="display: none;">
                     <button class="btn-text">&lt;</button>
                     <span id="schedule-date-display">Ma</span>
@@ -300,6 +356,26 @@
                     <div id="active-jobs-view" class="schedule-tab-content">
                         <!-- Grouped by Date -->
                     </div>
+                </div>
+
+                <div class="table-container" style="margin-top: 20px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #ffd700;">Lemondási napló</h3>
+                    <table class="admin-table" id="cancel-log-table">
+                        <thead>
+                            <tr>
+                                <th>Időpont</th>
+                                <th>Ügyfél</th>
+                                <th>Autó</th>
+                                <th>Foglalás</th>
+                                <th>Határidőn belül</th>
+                                <th>VIP</th>
+                                <th>Kapacitás</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Log entries injected here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -525,54 +601,47 @@
     <div id="gifts-modal" class="modal">
         <div class="modal-content glass-panel admin-modal-large">
             <div class="modal-header">
-                <h2>Beérkező Ajándék Meglepetések 🎁</h2>
+                <h2>Ajándékkódok 🎁</h2>
                 <button class="close-btn" onclick="closeModal('gifts-modal')">×</button>
             </div>
             <div class="modal-body">
-                <p class="modal-description">Itt látod a kliensek által beküldött ajándék foglalásokat. Vedd fel velük a
-                    kapcsolatot, egyeztesd a pontos rendszámot, majd "Aktiváld" a munkát a naptárba.</p>
-                <div class="table-container">
-                    <table class="admin-table" id="gifts-table">
+                <p class="modal-description">Itt látod az ajándékkódok állapotát, valamint a beváltások naplóját.</p>
+                <div class="table-container" style="margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #ff0055;">Ajándékkód lista</h3>
+                    <table class="admin-table" id="gift-codes-table">
                         <thead>
                             <tr>
-                                <th>Küldő</th>
-                                <th>Célpont (Név)</th>
-                                <th>Dátum / Idő</th>
-                                <th>Autó / Cím Leírás</th>
+                                <th>Kód</th>
+                                <th>Státusz</th>
+                                <th>Létrehozó</th>
+                                <th>Beváltó</th>
+                                <th>Létrehozás</th>
                                 <th>Művelet</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Gifts injected here -->
+                            <!-- Gift codes injected here -->
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Gift Process Modal (Small Sub-modal) -->
-    <div id="gift-process-modal" class="modal" style="background: rgba(0,0,0,0.8);">
-        <div class="modal-content glass-panel" style="max-width: 400px; border: 2px solid #ff0055;">
-            <div class="modal-header">
-                <h3>Ajándék Aktiválása</h3>
-                <button class="close-btn" onclick="closeModal('gift-process-modal')">×</button>
-            </div>
-            <div class="modal-body">
-                <p id="gift-process-info" style="font-size: 0.85rem; margin-bottom: 15px;"></p>
-                <form id="gift-process-form">
-                    <input type="hidden" id="process-gift-id">
-                    <div class="form-group">
-                        <label>Valódi Rendszám *</label>
-                        <input type="text" id="process-plate" placeholder="Pl. ABC-123" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Márka / Típus *</label>
-                        <input type="text" id="process-brand-model" placeholder="Pl. Ezüst BMW 3" required>
-                    </div>
-                    <button type="submit" class="btn-success full-width" style="margin-top: 15px;">Aktiválás a Naptárba
-                        🚀</button>
-                </form>
+                <div class="table-container">
+                    <h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #ffd700;">Beváltási napló</h3>
+                    <table class="admin-table" id="gift-redeem-table">
+                        <thead>
+                            <tr>
+                                <th>Idő</th>
+                                <th>Esemény</th>
+                                <th>Kód</th>
+                                <th>Felhasználó</th>
+                                <th>Darab</th>
+                                <th>Megjegyzés</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Gift logs injected here -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -683,6 +752,73 @@
                             <label class="day-checkbox"><input type="checkbox" name="open-day" value="6" checked>
                                 Szom</label>
                             <label class="day-checkbox"><input type="checkbox" name="open-day" value="0"> Vas</label>
+                        </div>
+                    </div>
+
+                    <!-- VIP Idősáv Szabályok -->
+                    <div
+                        style="background: rgba(255, 215, 0, 0.08); padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid rgba(255, 215, 0, 0.25);">
+                        <h3 style="margin-top:0; margin-bottom:15px; font-size:1rem; color:#ffd700;">VIP idősáv
+                            szabályok 👑</h3>
+
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label for="vip-gold-advance" style="display:block; margin-bottom:8px; font-weight:bold;">
+                                Gold előfoglalási előny (nap)
+                            </label>
+                            <p style="font-size:0.85rem; opacity:0.7; margin-bottom:8px;">
+                                Ennyi nappal többet láthatnak a Gold ügyfelek a naptárban.
+                            </p>
+                            <input type="number" id="vip-gold-advance" min="0" max="30" step="1" value="0"
+                                style="width:100%; padding:8px; border-radius:6px;">
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label for="vip-priority-slots" style="display:block; margin-bottom:8px; font-weight:bold;">
+                                Elsőbbségi idősávok (Platina)
+                            </label>
+                            <p style="font-size:0.85rem; opacity:0.7; margin-bottom:8px;">
+                                Vesszővel elválasztva add meg (pl. 08:00, 12:30). Csak Platina látja.
+                            </p>
+                            <input type="text" id="vip-priority-slots" placeholder="08:00, 12:30"
+                                style="width:100%; padding:8px; border-radius:6px;">
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 5px;">
+                            <label for="vip-home-slots" style="display:block; margin-bottom:8px; font-weight:bold;">
+                                Házhoz rendelhető idősávok (Platina)
+                            </label>
+                            <p style="font-size:0.85rem; opacity:0.7; margin-bottom:8px;">
+                                Csak Platina ügyfelek számára jelenik meg a kirakatban.
+                            </p>
+                            <input type="text" id="vip-home-slots" placeholder="10:00, 15:30"
+                                style="width:100%; padding:8px; border-radius:6px;">
+                        </div>
+                    </div>
+
+                    <!-- Előfizetés Jogosultság Szabályok -->
+                    <div
+                        style="background: rgba(0, 255, 150, 0.08); padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid rgba(0, 255, 150, 0.25);">
+                        <h3 style="margin-top:0; margin-bottom:15px; font-size:1rem; color:#4cc9f0;">Előfizetés
+                            jogosultság</h3>
+
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label for="subscription-max-entitlements"
+                                style="display:block; margin-bottom:8px; font-weight:bold;">
+                                Max gyűjthető jogosultság
+                            </label>
+                            <input type="number" id="subscription-max-entitlements" min="1" max="52" step="1" value="4"
+                                style="width:100%; padding:8px; border-radius:6px;">
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 5px;">
+                            <label for="subscription-late-cancel-return"
+                                style="display:flex; align-items:center; gap:8px; font-weight:bold;">
+                                <input type="checkbox" id="subscription-late-cancel-return">
+                                Jogosultság visszaadás késői lemondáskor
+                            </label>
+                            <p style="font-size:0.85rem; opacity:0.7; margin-bottom:0;">
+                                Ha bekapcsolt, a határidőn túli lemondás is visszaadja a jogosultságot.
+                            </p>
                         </div>
                     </div>
 
@@ -866,6 +1002,133 @@
                         </thead>
                         <tbody>
                             <!-- VIP Requests injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subscriptions Modal -->
+    <div id="subscriptions-modal" class="modal">
+        <div class="modal-content glass-panel admin-modal-large">
+            <div class="modal-header">
+                <h2>Előfizetések kezelése</h2>
+                <button class="close-btn" onclick="closeModal('subscriptions-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="table-container" style="margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #4cc9f0;">Aktív előfizetések</h3>
+                    <table class="admin-table" id="subscriptions-table">
+                        <thead>
+                            <tr>
+                                <th>Ügyfél</th>
+                                <th>Státusz</th>
+                                <th>Jogosultság</th>
+                                <th>Utolsó jóváírás</th>
+                                <th>Kezdet</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Subscription rows -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-container">
+                    <h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #ffd700;">Jogosultság napló</h3>
+                    <table class="admin-table" id="subscription-log-table">
+                        <thead>
+                            <tr>
+                                <th>Idő</th>
+                                <th>Esemény</th>
+                                <th>Ügyfél</th>
+                                <th>Érintett</th>
+                                <th>Darab</th>
+                                <th>Megjegyzés</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Subscription log rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Promotions Modal -->
+    <div id="promotions-modal" class="modal">
+        <div class="modal-content glass-panel admin-modal-large">
+            <div class="modal-header">
+                <h2>Akciók kezelése</h2>
+                <button class="close-btn" onclick="closeModal('promotions-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="promo-info-panel">
+                    Egyszerre csak <strong>1 aktív akció</strong> lehet. Az akciók kizárólag az árat módosítják.
+                </div>
+
+                <div class="promo-form-panel">
+                    <h3 style="margin-top:0;">Új akció / Szerkesztés</h3>
+                    <form id="promotion-form" class="promo-form-grid">
+                        <input type="hidden" id="promotion-id">
+                        <div>
+                            <label for="promotion-name" class="promo-label">Akció neve</label>
+                            <input type="text" id="promotion-name" class="admin-input" placeholder="Pl. Tavaszi -20%"
+                                required>
+                        </div>
+                        <div>
+                            <label for="promotion-type" class="promo-label">Típus</label>
+                            <select id="promotion-type" class="admin-select" required>
+                                <option value="percent">Százalékos kedvezmény</option>
+                                <option value="fixed">Fix összeg kedvezmény</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="promotion-value" class="promo-label">Érték</label>
+                            <input type="number" id="promotion-value" class="admin-input" min="0" step="1" required>
+                        </div>
+                        <div>
+                            <label for="promotion-start" class="promo-label">Kezdő dátum/idő</label>
+                            <input type="datetime-local" id="promotion-start" class="admin-input" required>
+                        </div>
+                        <div>
+                            <label for="promotion-end" class="promo-label">Záró dátum/idő</label>
+                            <input type="datetime-local" id="promotion-end" class="admin-input" required>
+                        </div>
+                        <div>
+                            <label for="promotion-vip" class="promo-label">VIP hatókör</label>
+                            <select id="promotion-vip" class="admin-select" required>
+                                <option value="all">Mind</option>
+                                <option value="basic">Alap</option>
+                                <option value="gold">Gold</option>
+                                <option value="platinum">Platina</option>
+                            </select>
+                        </div>
+                        <div class="promo-form-actions">
+                            <button type="submit" class="btn-primary" id="promotion-submit-btn">Mentés</button>
+                            <button type="button" class="btn-text" id="promotion-reset-btn">Űrlap törlése</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-container">
+                    <h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #ffb347;">Aktív / inaktív akciók</h3>
+                    <table class="admin-table" id="promotions-table">
+                        <thead>
+                            <tr>
+                                <th>Név</th>
+                                <th>Típus</th>
+                                <th>Érték</th>
+                                <th>Időtartam</th>
+                                <th>VIP</th>
+                                <th>Státusz</th>
+                                <th style="text-align:right;">Művelet</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Promotion rows -->
                         </tbody>
                     </table>
                 </div>
